@@ -1,0 +1,15 @@
+{
+  "name": "com.siamango.solframe",
+  "version": "1.0.0",
+  "displayName": "SolFrame",
+  "description": "The Unity framework for the Solana network",
+  "keywords": [
+    "plugin",
+    "utils"
+  ],
+  "author": {
+    "name": "Siamango",
+    "url": "https://github.com/siamango/"
+  },
+  "samples": []
+}
