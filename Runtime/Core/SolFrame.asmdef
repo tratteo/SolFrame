@@ -1,7 +1,9 @@
 {
     "name": "SolFrame",
     "rootNamespace": "SolFrame",
-    "references": [],
+    "references": [
+        "GUID:b1e53f0087f5cd743bb018edbc1c8ef8"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
