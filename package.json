@@ -11,8 +11,5 @@
     "name": "Siamango",
     "url": "https://github.com/siamango/"
   },
-  "dependencies": {
-    "com.tratteo.gibframe": "https://github.com/tratteo/GibFrame.git"
-  }
   "samples": []
 }
