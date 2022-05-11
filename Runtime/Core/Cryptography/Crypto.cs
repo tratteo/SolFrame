@@ -166,4 +166,29 @@ namespace SolFrame.Cryptography
             return true;
         }
     }
+
+    public static class CryptoExtensions
+    {
+        public static string BytesToX2String(this byte[] arr)
+        {
+            var s = string.Empty;
+            for (var i = 0; i < arr.Length; i++)
+            {
+                s += arr[i].ToString("x2");
+            }
+            return s;
+        }
+
+        public static byte[] X2StringToBytes(this string str)
+        {
+            var bytes = new byte[str.Length / 2];
+            for (var i = 0; i < str.Length; i += 2)
+            {
+                var subs = str.Substring(i, 2);
+                var b = Convert.ToByte(subs, 16);
+                bytes[i / 2] = b;
+            }
+            return bytes;
+        }
+    }
 }
