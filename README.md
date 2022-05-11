@@ -5,7 +5,7 @@
 ## The next-gen Unity / Solana integration
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/31132987/167888647-ce3bbb19-e49b-49af-9f8f-1ac184e488db.png">
+  <img src="https://user-images.githubusercontent.com/31132987/167898862-9a3f5398-a0b9-4f72-9b42-3e6e4587a05e.png" width=256>
 </p>
 
 ### This package is based on the .NET library for Solana [Solnet](https://github.com/bmresearch/Solnet).
