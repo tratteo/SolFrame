@@ -24,14 +24,14 @@ namespace Solnet.KeyStore.Services
 
         protected override byte[] GenerateDerivedKey(string password, byte[] salt, ScryptParams kdfParams)
         {
-            return keyStoreCrypto.GenerateDerivedScryptKey(keyStoreCrypto.GetPasswordAsBytes(password), salt,
+            return KeyStoreCrypto.GenerateDerivedScryptKey(KeyStoreCrypto.GetPasswordAsBytes(password), salt,
                 kdfParams.N, kdfParams.R,
                 kdfParams.P, kdfParams.Dklen);
         }
 
         protected override ScryptParams GetDefaultParams()
         {
-            return new ScryptParams() { Dklen = 32, N = 262144, R = 1, P = 8 };
+            return new() { Dklen = 32, N = 262144, R = 1, P = 8 };
         }
 
         public override KeyStore<ScryptParams> DeserializeKeyStoreFromJson(string json)
@@ -50,7 +50,7 @@ namespace Solnet.KeyStore.Services
             if (password == null) throw new ArgumentNullException(nameof(password));
             if (keyStore == null) throw new ArgumentNullException(nameof(keyStore));
 
-            return keyStoreCrypto.DecryptScrypt(password, keyStore.Crypto.Mac.HexToByteArray(),
+            return KeyStoreCrypto.DecryptScrypt(password, keyStore.Crypto.Mac.HexToByteArray(),
                 keyStore.Crypto.CipherParams.Iv.HexToByteArray(),
                 keyStore.Crypto.CipherText.HexToByteArray(),
                 keyStore.Crypto.Kdfparams.N,

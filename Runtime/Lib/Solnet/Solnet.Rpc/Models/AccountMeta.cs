@@ -1,75 +1,64 @@
-using Solnet.Wallet.Utilities;
+using Solnet.Wallet;
+using System.Diagnostics;
 
 namespace Solnet.Rpc.Models
 {
     /// <summary>
     ///   Implements the account meta logic, which defines if an account represented by public key is a signer, a writable account or both.
     /// </summary>
+    [DebuggerDisplay("PK = {" + nameof(PublicKey) + "}")]
     public class AccountMeta
     {
         /// <summary>
-        ///   The base58 encoder instance.
+        ///   The public key as a byte array.
         /// </summary>
-        //private static readonly Base58Encoder Encoder = new Base58Encoder();
-
-        /// <summary>
-        ///   The public key.
-        /// </summary>
-        internal byte[] publicKey;
+        public byte[] PublicKeyBytes { get; }
 
         /// <summary>
         ///   Get the public key encoded as base58.
         /// </summary>
-        public string GetPublicKey => Encoders.Base58.EncodeData(publicKey);
+        public string PublicKey { get; }
 
         /// <summary>
         ///   A boolean which defines if the account is a signer account.
         /// </summary>
-        internal bool Signer { get; }
+        public bool IsSigner { get; internal set; }
 
         /// <summary>
         ///   A boolean which defines if the account is a writable account.
         /// </summary>
-        internal bool Writable { get; }
+        public bool IsWritable { get; internal set; }
 
         /// <summary>
-        ///   Initialize the account meta with the passed public key, and booleans defining if it is a signer and/or writable account.
+        ///   Initialize the account meta with the passed public key, being a non-signing account for the transaction.
         /// </summary>
-        /// <param name="publicKey"> The account's public key. </param>
-        /// <param name="isSigner"> If the account is a signer. </param>
-        /// <param name="isWritable"> If the account is writable. </param>
-        public AccountMeta(byte[] publicKey, bool isSigner, bool isWritable)
+        /// <param name="publicKey"> The public key. </param>
+        /// <param name="isWritable"> Whether the account is writable. </param>
+        /// <param name="isSigner"> Whether the account is a signer. </param>
+        internal AccountMeta(PublicKey publicKey, bool isWritable, bool isSigner)
         {
-            this.publicKey = publicKey;
-            Signer = isSigner;
-            Writable = isWritable;
+            PublicKey = publicKey.Key;
+            PublicKeyBytes = publicKey.KeyBytes;
+            IsSigner = isSigner;
+            IsWritable = isWritable;
         }
-    }
 
-    /// <summary>
-    ///   Implements extensions to <see cref="AccountMeta"/>.
-    /// </summary>
-    internal static class AccountMetaExtensions
-    {
         /// <summary>
-        ///   Compares two <see cref="AccountMeta"/> objects.
+        ///   Initializes an <see cref="AccountMeta"/> for a writable account with the given <see cref="PublicKey"/> and a bool that signals
+        ///   whether the account is a signer or not.
         /// </summary>
-        /// <param name="am1"> The base of the comparison. </param>
-        /// <param name="am2"> The object to compare the base to. </param>
-        /// <returns>
-        ///   Returns 0 if the objects are equal in terms of Signing and Writing,
-        ///   -1 if the base of the comparison is something the other is not, otherwise 1.
-        /// </returns>
-        internal static int Compare(AccountMeta am1, AccountMeta am2)
-        {
-            var cmpSigner = am1.Signer == am2.Signer ? 0 : am1.Signer ? -1 : 1;
-            if (cmpSigner != 0)
-            {
-                return cmpSigner;
-            }
+        /// <param name="publicKey"> The public key. </param>
+        /// <param name="isSigner"> Whether the account is a signer. </param>
+        /// <returns> The <see cref="AccountMeta"/> instance. </returns>
+        public static AccountMeta Writable(PublicKey publicKey, bool isSigner) => new(publicKey, true, isSigner);
 
-            var cmpWritable = am1.Writable == am2.Writable ? 0 : am1.Writable ? -1 : 1;
-            return cmpWritable != 0 ? cmpWritable : 0;
-        }
+        /// <summary>
+        ///   Initializes an <see cref="AccountMeta"/> for a read-only account with the given <see cref="PublicKey"/> and a bool that
+        ///   signals whether the account is a signer or not.
+        /// </summary>
+        /// <param name="publicKey"> The public key. </param>
+        /// <param name="isSigner"> Whether the account is a signer. </param>
+        /// <returns> The <see cref="AccountMeta"/> instance. </returns>
+        public static AccountMeta ReadOnly(PublicKey publicKey, bool isSigner) => new(publicKey, false, isSigner);
     }
 }

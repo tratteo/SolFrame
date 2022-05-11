@@ -1,63 +1,25 @@
 using Chaos.NaCl;
+using SolFrame.Wallet.Utilities;
 using Solnet.Wallet.Utilities;
-using System;
-using System.Security.Cryptography;
-
-//using NBitcoin.DataEncoders;
+using System.Diagnostics;
 
 namespace Solnet.Wallet
 {
+    /// <summary>
+    ///   Implements account functionality.
+    /// </summary>
+    [DebuggerDisplay("PubKey = {ToString()}")]
     public class Account
     {
         /// <summary>
-        ///   The base58 encoder instance.
-        /// </summary>
-        //private static readonly Base58Encoder Encoder = new Base58Encoder();
-
-        /// <summary>
-        ///   Private key length.
-        /// </summary>
-        private const int PrivateKeyLength = 64;
-
-        /// <summary>
-        ///   Public key length.
-        /// </summary>
-        private const int PublicKeyLength = 32;
-
-        /// <summary>
         ///   The private key.
         /// </summary>
-        private readonly byte[] privateKey;
+        public PrivateKey PrivateKey { get; }
 
         /// <summary>
         ///   The public key.
         /// </summary>
-        private readonly byte[] publicKey;
-
-        /// <summary>
-        ///   Get the private key encoded as base58.
-        /// </summary>
-        public string GetPrivateKey => Encoders.Base58.EncodeData(privateKey);
-
-        /// <summary>
-        ///   Get byte array of private key
-        /// </summary>
-        public byte[] GetByteArayPrivateKey => privateKey;
-
-        /// <summary>
-        ///   Get the public key encoded as base58.
-        /// </summary>
-        public string GetPublicKey => Encoders.Base58.EncodeData(publicKey);
-
-        /// <summary>
-        ///   Get the public key as a byte array.
-        /// </summary>
-        public byte[] PublicKey => publicKey;
-
-        /// <summary>
-        ///   Get the private key as a byte array.
-        /// </summary>
-        public byte[] PrivateKey => privateKey;
+        public PublicKey PublicKey { get; }
 
         /// <summary>
         ///   Initialize an account. Generating a random seed for the Ed25519 key pair.
@@ -66,7 +28,10 @@ namespace Solnet.Wallet
         {
             var seed = GenerateRandomSeed();
 
-            (privateKey, publicKey) = Ed25519Extensions.EdKeyPairFromSeed(seed);
+            (var privateKey, var publicKey) = Utils.EdKeyPairFromSeed(seed);
+
+            PrivateKey = new PrivateKey(privateKey);
+            PublicKey = new PublicKey(publicKey);
         }
 
         /// <summary>
@@ -74,16 +39,32 @@ namespace Solnet.Wallet
         /// </summary>
         /// <param name="privateKey"> The private key. </param>
         /// <param name="publicKey"> The public key. </param>
+        public Account(string privateKey, string publicKey)
+        {
+            PrivateKey = new PrivateKey(privateKey);
+            PublicKey = new PublicKey(publicKey);
+        }
+
+        /// <inheritdoc cref="Account(string,string)"/>
         public Account(byte[] privateKey, byte[] publicKey)
         {
-            if (privateKey.Length != PrivateKeyLength)
-                throw new ArgumentException("invalid key length", nameof(privateKey));
-            if (publicKey.Length != PublicKeyLength)
-                throw new ArgumentException("invalid key length", nameof(privateKey));
-
-            this.privateKey = privateKey;
-            this.publicKey = publicKey;
+            PrivateKey = new PrivateKey(privateKey);
+            PublicKey = new PublicKey(publicKey);
         }
+
+        /// <summary>
+        ///   Conversion between a <see cref="Account"/> object and the corresponding private key.
+        /// </summary>
+        /// <param name="account"> The Account object. </param>
+        /// <returns> The private key. </returns>
+        public static implicit operator PrivateKey(Account account) => account.PrivateKey;
+
+        /// <summary>
+        ///   Conversion between a <see cref="Account"/> object and the corresponding public key.
+        /// </summary>
+        /// <param name="account"> The Account object. </param>
+        /// <returns> The public key as a byte array. </returns>
+        public static implicit operator PublicKey(Account account) => account.PublicKey;
 
         /// <summary>
         ///   Verify the signed message.
@@ -91,31 +72,37 @@ namespace Solnet.Wallet
         /// <param name="message"> The signed message. </param>
         /// <param name="signature"> The signature of the message. </param>
         /// <returns> </returns>
-        public bool Verify(byte[] message, byte[] signature)
-        {
-            return Ed25519.Verify(signature, message, publicKey);
-        }
+        public bool Verify(byte[] message, byte[] signature) => PublicKey.Verify(message, signature);
 
         /// <summary>
         ///   Sign the data.
         /// </summary>
         /// <param name="message"> The data to sign. </param>
         /// <returns> The signature of the data. </returns>
-        public byte[] Sign(byte[] message)
+        public byte[] Sign(byte[] message) => PrivateKey.Sign(message);
+
+        /// <inheritdoc cref="Equals(object)"/>
+        public override bool Equals(object obj)
         {
-            var signature = new byte[64];
-            Ed25519.Sign(new ArraySegment<byte>(signature), new ArraySegment<byte>(message), new ArraySegment<byte>(privateKey));
-            return signature;
+            if (obj is Account account) return account.PublicKey == PublicKey;
+
+            return false;
         }
+
+        /// <inheritdoc cref="ToString"/>
+        public override string ToString() => PublicKey;
+
+        /// <inheritdoc cref="GetHashCode"/>
+        public override int GetHashCode() => PublicKey.GetHashCode();
 
         /// <summary>
         ///   Generates a random seed for the Ed25519 key pair.
         /// </summary>
         /// <returns> The seed as byte array. </returns>
-        private byte[] GenerateRandomSeed()
+        private static byte[] GenerateRandomSeed()
         {
             var bytes = new byte[Ed25519.PrivateKeySeedSizeInBytes];
-            RandomNumberGenerator.Create().GetBytes(bytes);
+            RandomUtils.GetBytes(bytes);
             return bytes;
         }
     }

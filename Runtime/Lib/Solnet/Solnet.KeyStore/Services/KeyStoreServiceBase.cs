@@ -7,8 +7,8 @@ namespace Solnet.KeyStore.Services
     public abstract class KeyStoreServiceBase<T> : ISecretKeyStoreService<T> where T : KdfParams
     {
         public const int CurrentVersion = 3;
-        protected readonly KeyStoreCrypto keyStoreCrypto;
-        protected readonly IRandomBytesGenerator randomBytesGenerator;
+        protected readonly KeyStoreCrypto KeyStoreCrypto;
+        protected readonly IRandomBytesGenerator RandomBytesGenerator;
 
         protected KeyStoreServiceBase() : this(new RandomBytesGenerator(), new KeyStoreCrypto())
         {
@@ -16,14 +16,15 @@ namespace Solnet.KeyStore.Services
 
         protected KeyStoreServiceBase(IRandomBytesGenerator randomBytesGenerator, KeyStoreCrypto keyStoreCrypto)
         {
-            this.randomBytesGenerator = randomBytesGenerator;
-            this.keyStoreCrypto = keyStoreCrypto;
+            RandomBytesGenerator = randomBytesGenerator;
+            KeyStoreCrypto = keyStoreCrypto;
         }
+
 
         protected KeyStoreServiceBase(IRandomBytesGenerator randomBytesGenerator)
         {
-            this.randomBytesGenerator = randomBytesGenerator;
-            keyStoreCrypto = new KeyStoreCrypto();
+            RandomBytesGenerator = randomBytesGenerator;
+            KeyStoreCrypto = new KeyStoreCrypto();
         }
 
         public KeyStore<T> EncryptAndGenerateKeyStore(string password, byte[] privateKey, string address)
@@ -39,14 +40,16 @@ namespace Solnet.KeyStore.Services
         }
 
         public abstract KeyStore<T> DeserializeKeyStoreFromJson(string json);
-
         public abstract string SerializeKeyStoreToJson(KeyStore<T> keyStore);
 
         public abstract byte[] DecryptKeyStore(string password, KeyStore<T> keyStore);
 
         public abstract string GetKdfType();
 
-        public virtual string GetCipherType() => "aes-128-ctr";
+        public virtual string GetCipherType()
+        {
+            return "aes-128-ctr";
+        }
 
         public KeyStore<T> EncryptAndGenerateKeyStore(string password, byte[] privateKey, string address, T kdfParams)
         {
@@ -55,17 +58,17 @@ namespace Solnet.KeyStore.Services
             if (address == null) throw new ArgumentNullException(nameof(address));
             if (kdfParams == null) throw new ArgumentNullException(nameof(kdfParams));
 
-            var salt = randomBytesGenerator.GenerateRandomSalt();
+            var salt = RandomBytesGenerator.GenerateRandomSalt();
 
             var derivedKey = GenerateDerivedKey(password, salt, kdfParams);
 
-            var cipherKey = keyStoreCrypto.GenerateCipherKey(derivedKey);
+            var cipherKey = KeyStoreCrypto.GenerateCipherKey(derivedKey);
 
-            var iv = randomBytesGenerator.GenerateRandomInitializationVector();
+            var iv = RandomBytesGenerator.GenerateRandomInitializationVector();
 
             var cipherText = GenerateCipher(privateKey, iv, cipherKey);
 
-            var mac = keyStoreCrypto.GenerateMac(derivedKey, cipherText);
+            var mac = KeyStoreCrypto.GenerateMac(derivedKey, cipherText);
 
             var cryptoInfo = new CryptoInfo<T>(GetCipherType(), cipherText, iv, mac, salt, kdfParams, GetKdfType());
 
@@ -92,7 +95,10 @@ namespace Solnet.KeyStore.Services
             return DecryptKeyStore(password, keyStore);
         }
 
-        protected virtual byte[] GenerateCipher(byte[] privateKey, byte[] iv, byte[] cipherKey) => keyStoreCrypto.GenerateAesCtrCipher(iv, cipherKey, privateKey);
+        protected virtual byte[] GenerateCipher(byte[] privateKey, byte[] iv, byte[] cipherKey)
+        {
+            return KeyStoreCrypto.GenerateAesCtrCipher(iv, cipherKey, privateKey);
+        }
 
         protected abstract byte[] GenerateDerivedKey(string password, byte[] salt, T kdfParams);
 

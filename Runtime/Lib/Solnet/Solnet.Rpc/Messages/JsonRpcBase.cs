@@ -1,9 +1,18 @@
 ﻿namespace Solnet.Rpc.Messages
 {
-    public class JsonRpcBase
+    /// <summary>
+    /// Base JpnRpc message.
+    /// </summary>
+    public abstract class JsonRpcBase
     {
-        public string jsonrpc { get; protected set; }
+        /// <summary>
+        /// The rpc version.
+        /// </summary>
+        public string Jsonrpc { get; protected set; }
 
-        public int id { get; set; }
+        /// <summary>
+        /// The id of the message.
+        /// </summary>
+        public int Id { get; set; }
     }
 }

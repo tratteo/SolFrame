@@ -1,4 +1,6 @@
-using Solnet.Wallet.Utilities;
+using Chaos.NaCl;
+using SolFrame.Wallet.Utilities;
+using Solnet.Wallet.Bip39;
 using System;
 using System.Linq;
 
@@ -17,17 +19,17 @@ namespace Solnet.Wallet
         /// <summary>
         ///   The seed mode used for key generation.
         /// </summary>
-        private readonly SeedMode seedMode;
+        private readonly SeedMode _seedMode;
 
         /// <summary>
         ///   The seed derived from the mnemonic and/or passphrase.
         /// </summary>
-        private byte[] seed;
+        private byte[] _seed;
 
         /// <summary>
         ///   The method used for <see cref="SeedMode.Ed25519Bip32"/> key generation.
         /// </summary>
-        private Ed25519Bip32 ed25519Bip32;
+        private Ed25519Bip32 _ed25519Bip32;
 
         /// <summary>
         ///   The key pair.
@@ -38,7 +40,7 @@ namespace Solnet.Wallet
         ///   The mnemonic words.
         /// </summary>
         // ReSharper disable once MemberCanBePrivate.Global
-        public string Mnemonic { get; }
+        public Mnemonic Mnemonic { get; }
 
         /// <summary>
         ///   The passphrase string.
@@ -49,11 +51,11 @@ namespace Solnet.Wallet
         ///   Initialize a wallet from passed word count and word list for the mnemonic and passphrase.
         /// </summary>
         /// <param name="wordCount"> The mnemonic word count. </param>
-        /// <param name="wordlist"> The language of the mnemonic words. </param>
+        /// <param name="wordList"> The language of the mnemonic words. </param>
         /// <param name="passphrase"> The passphrase. </param>
         /// <param name="seedMode"> The seed generation mode. </param>
-        public Wallet(int wordCount, string wordlist, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
-            : this(wordlist, passphrase, seedMode)
+        public Wallet(WordCount wordCount, WordList wordList, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
+            : this(new Mnemonic(wordList, wordCount), passphrase, seedMode)
         {
         }
 
@@ -63,12 +65,12 @@ namespace Solnet.Wallet
         /// <param name="mnemonic"> The mnemonic. </param>
         /// <param name="passphrase"> The passphrase. </param>
         /// <param name="seedMode"> The seed generation mode. </param>
-        public Wallet(string mnemonic, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
+        public Wallet(Mnemonic mnemonic, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
         {
             Mnemonic = mnemonic;
             Passphrase = passphrase;
 
-            this.seedMode = seedMode;
+            _seedMode = seedMode;
             InitializeSeed();
         }
 
@@ -76,15 +78,15 @@ namespace Solnet.Wallet
         ///   Initialize a wallet from the passed mnemonic and passphrase.
         /// </summary>
         /// <param name="mnemonicWords"> The mnemonic words. </param>
-        /// <param name="wordlist"> The language of the mnemonic words. Defaults to <see cref="Wordlist.English"/>. </param>
+        /// <param name="wordList"> The language of the mnemonic words. Defaults to <see cref="WordList.English"/>. </param>
         /// <param name="passphrase"> The passphrase. </param>
         /// <param name="seedMode"> The seed generation mode. </param>
-        public Wallet(string mnemonicWords, dotnetstandard_bip39.BIP39Wordlist wordlist = dotnetstandard_bip39.BIP39Wordlist.English, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
+        public Wallet(string mnemonicWords, WordList wordList = null, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
         {
-            Mnemonic = mnemonicWords;
+            Mnemonic = new Mnemonic(mnemonicWords, wordList ?? WordList.English);
             Passphrase = passphrase;
 
-            this.seedMode = seedMode;
+            _seedMode = seedMode;
             InitializeSeed();
         }
 
@@ -96,13 +98,13 @@ namespace Solnet.Wallet
         /// <param name="seedMode"> The seed mode. </param>
         public Wallet(byte[] seed, string passphrase = "", SeedMode seedMode = SeedMode.Ed25519Bip32)
         {
-            //if (seed.Length != Ed25519.ExpandedPrivateKeySizeInBytes)
-            //    throw new ArgumentException("invalid seed length", nameof(seed));
+            if (seed.Length != Ed25519.ExpandedPrivateKeySizeInBytes)
+                throw new ArgumentException("invalid seed length", nameof(seed));
 
             Passphrase = passphrase;
 
-            this.seedMode = seedMode;
-            this.seed = seed;
+            _seedMode = seedMode;
+            _seed = seed;
             InitializeFirstAccount();
         }
 
@@ -115,7 +117,7 @@ namespace Solnet.Wallet
         /// <returns> </returns>
         public bool Verify(byte[] message, byte[] signature, int accountIndex)
         {
-            if (seedMode != SeedMode.Ed25519Bip32)
+            if (_seedMode != SeedMode.Ed25519Bip32)
                 throw new Exception("cannot verify bip39 signatures using ed25519 based bip32 keys");
 
             var account = GetAccount(accountIndex);
@@ -128,7 +130,10 @@ namespace Solnet.Wallet
         /// <param name="message"> The signed message. </param>
         /// <param name="signature"> The signature of the message. </param>
         /// <returns> </returns>
-        public bool Verify(byte[] message, byte[] signature) => Account.Verify(message, signature);
+        public bool Verify(byte[] message, byte[] signature)
+        {
+            return Account.Verify(message, signature);
+        }
 
         /// <summary>
         ///   Sign the data.
@@ -138,7 +143,7 @@ namespace Solnet.Wallet
         /// <returns> The signature of the data. </returns>
         public byte[] Sign(byte[] message, int accountIndex)
         {
-            if (seedMode != SeedMode.Ed25519Bip32)
+            if (_seedMode != SeedMode.Ed25519Bip32)
                 throw new Exception("cannot compute bip39 signature using ed25519 based bip32 keys ");
 
             var account = GetAccount(accountIndex);
@@ -165,12 +170,12 @@ namespace Solnet.Wallet
         /// <returns> The account. </returns>
         public Account GetAccount(int index)
         {
-            if (seedMode != SeedMode.Ed25519Bip32)
-                throw new Exception($"seed mode: {seedMode} cannot derive Ed25519 based BIP32 keys");
+            if (_seedMode != SeedMode.Ed25519Bip32)
+                throw new Exception($"seed mode: {_seedMode} cannot derive Ed25519 based BIP32 keys");
 
             var path = DerivationPath.Replace("x", index.ToString());
-            var (account, _) = ed25519Bip32.DerivePath(path);
-            var (privateKey, publicKey) = Ed25519Extensions.EdKeyPairFromSeed(account);
+            (var account, var _) = _ed25519Bip32.DerivePath(path);
+            (var privateKey, var publicKey) = Utils.EdKeyPairFromSeed(account);
             return new Account(privateKey, publicKey);
         }
 
@@ -178,21 +183,30 @@ namespace Solnet.Wallet
         ///   Derive a seed from the passed mnemonic and/or passphrase, depending on <see cref="SeedMode"/>.
         /// </summary>
         /// <returns> The seed. </returns>
-        public byte[] DeriveMnemonicSeed() => seed ?? WalletKeyPair.GenerateSeedFromMnemonic(Mnemonic);
+        public byte[] DeriveMnemonicSeed()
+        {
+            if (_seed != null) return _seed;
+            return _seedMode switch
+            {
+                SeedMode.Ed25519Bip32 => Mnemonic.DeriveSeed(),
+                SeedMode.Bip39 => Mnemonic.DeriveSeed(Passphrase),
+                _ => Mnemonic.DeriveSeed()
+            };
+        }
 
         /// <summary>
         ///   Initializes the first account with a key pair derived from the initialized seed.
         /// </summary>
         private void InitializeFirstAccount()
         {
-            if (seedMode == SeedMode.Ed25519Bip32)
+            if (_seedMode == SeedMode.Ed25519Bip32)
             {
-                ed25519Bip32 = new Ed25519Bip32(seed);
+                _ed25519Bip32 = new Ed25519Bip32(_seed);
                 Account = GetAccount(0);
             }
             else
             {
-                var (privateKey, publicKey) = Ed25519Extensions.EdKeyPairFromSeed(seed.Slice(0, 32));//[..32]);
+                (var privateKey, var publicKey) = Utils.EdKeyPairFromSeed(_seed[..32]);
                 Account = new Account(privateKey, publicKey);
             }
         }
@@ -202,8 +216,7 @@ namespace Solnet.Wallet
         /// </summary>
         private void InitializeSeed()
         {
-            var mnemonics = WalletKeyPair.GenerateNewMnemonic();
-            seed = WalletKeyPair.GetBIP39SeedBytes(Mnemonic);
+            _seed = DeriveMnemonicSeed();
 
             InitializeFirstAccount();
         }

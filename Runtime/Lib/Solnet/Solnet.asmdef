@@ -1,17 +1,16 @@
 {
     "name": "Solnet",
     "rootNamespace": "",
-    "references": [
-        "GUID:040e283540a0b2b48baee00694c932b4"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": true,
     "precompiledReferences": [
         "BouncyCastle.Crypto.dll",
-        "dotnetstandard-bip39.dll",
-        "Newtonsoft.Json.dll"
+        "Chaos.NaCl.dll",
+        "System.Text.Json.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],

@@ -1,5 +1,4 @@
 using Solnet.KeyStore.Model;
-using UnityEngine;
 
 namespace Solnet.KeyStore.Serialization
 {
@@ -7,12 +6,12 @@ namespace Solnet.KeyStore.Serialization
     {
         public static string SerializeScrypt(KeyStore<ScryptParams> scryptKeyStore)
         {
-            return JsonUtility.ToJson(scryptKeyStore);
+            return System.Text.Json.JsonSerializer.Serialize(scryptKeyStore);
         }
 
         public static KeyStore<ScryptParams> DeserializeScrypt(string json)
         {
-            return JsonUtility.FromJson<KeyStore<ScryptParams>>(json);
+            return System.Text.Json.JsonSerializer.Deserialize<KeyStore<ScryptParams>>(json);
         }
     }
 }

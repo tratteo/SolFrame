@@ -44,7 +44,7 @@ namespace Solnet.Wallet.Utilities
         /// <returns></returns>
         public bool IsMaybeEncoded(string str)
         {
-            var maybeB58 = str.All(t => ((IList)PszBase58).Contains(t));
+            bool maybeB58 = str.All(t => ((IList)PszBase58).Contains(t));
 
             return maybeB58 && str.Length > 0;
         }
@@ -63,8 +63,8 @@ namespace Solnet.Wallet.Utilities
                 throw new ArgumentNullException(nameof(data));
 
             // Skip & count leading zeroes.
-            var zeroes = 0;
-            var length = 0;
+            int zeroes = 0;
+            int length = 0;
             while (offset != count && data[offset] == 0)
             {
                 offset++;
@@ -72,17 +72,17 @@ namespace Solnet.Wallet.Utilities
             }
 
             // Allocate enough space in big-endian base58 representation.
-            var size = (count - offset) * 138 / 100 + 1; // log(256) / log(58), rounded up.
-            var b58 = new byte[size];
+            int size = (count - offset) * 138 / 100 + 1; // log(256) / log(58), rounded up.
+            byte[] b58 = new byte[size];
 
             // Process the bytes.
             while (offset != count)
             {
                 int carry = data[offset];
-                var i = 0;
+                int i = 0;
 
                 // Apply "b58 = b58 * 256 + ch".
-                for (var it = size - 1; (carry != 0 || i < length) && it >= 0; i++, it--)
+                for (int it = size - 1; (carry != 0 || i < length) && it >= 0; i++, it--)
                 {
                     carry += 256 * b58[it];
                     b58[it] = (byte)(carry % 58);
@@ -94,14 +94,14 @@ namespace Solnet.Wallet.Utilities
             }
 
             // Skip leading zeroes in base58 result.
-            var it2 = (size - length);
+            int it2 = (size - length);
             while (it2 != size && b58[it2] == 0)
                 it2++;
 
             // Translate the result into a string.
-            var str = new char[zeroes + size - it2];
-            str.Fill('1', 0, zeroes);
-            var i2 = zeroes;
+            char[] str = new char[zeroes + size - it2];
+            Array.Fill(str, '1', 0, zeroes);
+            int i2 = zeroes;
             while (it2 != size)
                 str[i2++] = PszBase58[b58[it2++]];
             return new string(str);
@@ -118,15 +118,15 @@ namespace Solnet.Wallet.Utilities
         {
             if (encoded == null)
                 throw new ArgumentNullException(nameof(encoded));
-            var psz = 0;
+            int psz = 0;
 
             // Skip leading spaces.
             while (psz < encoded.Length && IsSpace(encoded[psz]))
                 psz++;
 
             // Skip and count leading '1's.
-            var zeroes = 0;
-            var length = 0;
+            int zeroes = 0;
+            int length = 0;
             while (psz < encoded.Length && encoded[psz] == '1')
             {
                 zeroes++;
@@ -134,18 +134,18 @@ namespace Solnet.Wallet.Utilities
             }
 
             // Allocate enough space in big-endian base256 representation.
-            var size = (encoded.Length - psz) * 733 / 1000 + 1; // log(58) / log(256), rounded up.
-            var b256 = new byte[size];
+            int size = (encoded.Length - psz) * 733 / 1000 + 1; // log(58) / log(256), rounded up.
+            byte[] b256 = new byte[size];
 
             // Process the characters.
             while (psz < encoded.Length && !IsSpace(encoded[psz]))
             {
                 // Decode base58 character
-                var carry = MapBase58[(byte)encoded[psz]];
+                int carry = MapBase58[(byte)encoded[psz]];
                 if (carry == -1)  // Invalid b58 character
                     throw new FormatException("Invalid base58 data");
-                var i = 0;
-                for (var it = size - 1; (carry != 0 || i < length) && it >= 0; i++, it--)
+                int i = 0;
+                for (int it = size - 1; (carry != 0 || i < length) && it >= 0; i++, it--)
                 {
                     carry += 58 * b256[it];
                     b256[it] = (byte)(carry % 256);
@@ -161,26 +161,14 @@ namespace Solnet.Wallet.Utilities
             if (psz != encoded.Length)
                 throw new FormatException("Invalid base58 data");
             // Skip leading zeroes in b256.
-            var it2 = size - length;
+            int it2 = size - length;
             // Copy result into output vector.
-            var vch = new byte[zeroes + size - it2];
-            vch.Fill<byte>(0, 0, zeroes);
-            var i2 = zeroes;
+            byte[] vch = new byte[zeroes + size - it2];
+            Array.Fill<byte>(vch, 0, 0, zeroes);
+            int i2 = zeroes;
             while (it2 != size)
                 vch[i2++] = b256[it2++];
             return vch;
         }
     }
-
-    public static class ArrayExtensions
-    {
-        public static void Fill<T>(this T[] originalArray, T with, int start, int range)
-        {
-            for (var i = start; i < range; i++)
-            {
-                originalArray[i] = with;
-            }
-        }
-    }
 }
-

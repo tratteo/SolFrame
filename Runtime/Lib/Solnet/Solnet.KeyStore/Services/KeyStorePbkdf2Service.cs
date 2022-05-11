@@ -24,12 +24,12 @@ namespace Solnet.KeyStore.Services
 
         protected override byte[] GenerateDerivedKey(string password, byte[] salt, Pbkdf2Params kdfParams)
         {
-            return keyStoreCrypto.GeneratePbkdf2Sha256DerivedKey(password, salt, kdfParams.Count, kdfParams.Dklen);
+            return KeyStoreCrypto.GeneratePbkdf2Sha256DerivedKey(password, salt, kdfParams.Count, kdfParams.Dklen);
         }
 
         protected override Pbkdf2Params GetDefaultParams()
         {
-            return new Pbkdf2Params() { Dklen = 32, Count = 262144, Prf = "hmac-sha256" };
+            return new() { Dklen = 32, Count = 262144, Prf = "hmac-sha256" };
         }
 
         public override KeyStore<Pbkdf2Params> DeserializeKeyStoreFromJson(string json)
@@ -47,7 +47,7 @@ namespace Solnet.KeyStore.Services
             if (password == null) throw new ArgumentNullException(nameof(password));
             if (keyStore == null) throw new ArgumentNullException(nameof(keyStore));
 
-            return keyStoreCrypto.DecryptPbkdf2Sha256(password, keyStore.Crypto.Mac.HexToByteArray(),
+            return KeyStoreCrypto.DecryptPbkdf2Sha256(password, keyStore.Crypto.Mac.HexToByteArray(),
                 keyStore.Crypto.CipherParams.Iv.HexToByteArray(),
                 keyStore.Crypto.CipherText.HexToByteArray(),
                 keyStore.Crypto.Kdfparams.Count,

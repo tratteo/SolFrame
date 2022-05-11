@@ -1,32 +1,146 @@
-﻿using System;
+﻿using Solnet.Rpc.Types;
+using System;
 using System.IO;
 using System.Net.WebSockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEngine;
 
 namespace Solnet.Rpc.Core.Sockets
 {
-    public abstract class StreamingRpcClient
+    /// <summary>
+    ///   Base streaming Rpc client class that abstracts the websocket handling.
+    /// </summary>
+    internal abstract class StreamingRpcClient : IDisposable
     {
-        protected readonly IWebSocket ClientSocket;
+        /// <summary>
+        ///   The logger instance.
+        /// </summary>
+        protected readonly ILogger _logger;
+        /// <summary>
+        ///   The web socket client abstraction.
+        /// </summary>
+        protected IWebSocket ClientSocket;
+        private SemaphoreSlim _sem;
+        private bool disposedValue;
+        private ConnectionStats _connectionStats;
 
-        private readonly string _socketUri;
+        /// <inheritdoc cref="IStreamingRpcClient.NodeAddress"/>
+        public Uri NodeAddress { get; }
 
-        protected StreamingRpcClient(string nodeUri, IWebSocket socket = default)
+        /// <inheritdoc cref="IStreamingRpcClient.State"/>
+        public WebSocketState State => ClientSocket.State;
+
+        /// <summary>
+        ///   Statistics of the current connection.
+        /// </summary>
+        public IConnectionStatistics Statistics => _connectionStats;
+
+        /// <summary>
+        ///   The internal constructor that setups the client.
+        /// </summary>
+        /// <param name="url"> The url of the streaming RPC server. </param>
+        /// <param name="logger"> The possible logger instance. </param>
+        /// <param name="socket"> The possible websocket instance. A new instance will be created if null. </param>
+        /// <param name="clientWebSocket"> The possible ClientWebSocket instance. A new instance will be created if null. </param>
+        protected StreamingRpcClient(string url, ILogger logger, IWebSocket socket = default, ClientWebSocket clientWebSocket = default)
         {
-            ClientSocket = socket ?? new WebSocketWrapper(new ClientWebSocket());
-            _socketUri = nodeUri;
+            NodeAddress = new Uri(url);
+            ClientSocket = socket ?? new WebSocketWrapper(clientWebSocket ?? new ClientWebSocket());
+            _logger = logger;
+            _sem = new SemaphoreSlim(1, 1);
+            _connectionStats = new ConnectionStats();
         }
 
-        public async Task Init()
+        /// <inheritdoc cref="IStreamingRpcClient.ConnectionStateChangedEvent"/>
+        public event EventHandler<WebSocketState> ConnectionStateChangedEvent;
+
+        /// <summary>
+        ///   Initializes the websocket connection and starts receiving messages asynchronously.
+        /// </summary>
+        /// <returns> Returns the task representing the asynchronous task. </returns>
+        public async Task ConnectAsync()
         {
-            await ClientSocket.ConnectAsync(new Uri(_socketUri), CancellationToken.None).ConfigureAwait(false);
-            _ = Task.Run(StartListening);
+            _sem.Wait();
+            try
+            {
+                if (ClientSocket.State != WebSocketState.Open)
+                {
+                    await ClientSocket.ConnectAsync(NodeAddress, CancellationToken.None).ConfigureAwait(false);
+                    _ = Task.Run(StartListening);
+                    ConnectionStateChangedEvent?.Invoke(this, State);
+                }
+            }
+            finally
+            {
+                _sem.Release();
+            }
         }
 
-        protected abstract void HandleNewMessage(ArraySegment<byte> mem);
+        /// <inheritdoc cref="IStreamingRpcClient.DisconnectAsync"/>
+        public async Task DisconnectAsync()
+        {
+            _sem.Wait();
+            try
+            {
+                if (ClientSocket.State == WebSocketState.Open)
+                {
+                    await ClientSocket.CloseAsync(CancellationToken.None);
 
+                    //notify at the end of StartListening loop, given that it should end as soon as we terminate connection here
+                    //and will also notify when there is a non-user triggered disconnection event
+
+                    // handle disconnection cleanup
+                    ClientSocket.Dispose();
+                    ClientSocket = new WebSocketWrapper(new ClientWebSocket());
+                    CleanupSubscriptions();
+                }
+            }
+            finally
+            {
+                _sem.Release();
+            }
+        }
+
+        /// <inheritdoc cref="IDisposable.Dispose"/>
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        ///   Handless a new message payload.
+        /// </summary>
+        /// <param name="messagePayload"> The message payload. </param>
+        protected abstract void HandleNewMessage(Memory<byte> messagePayload);
+
+        /// <summary>
+        ///   Clean up subscription objects after disconnection.
+        /// </summary>
+        protected abstract void CleanupSubscriptions();
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    ClientSocket.Dispose();
+                    _sem.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        /// <summary>
+        ///   Starts listeing to new messages.
+        /// </summary>
+        /// <returns> Returns the task representing the asynchronous task. </returns>
         private async Task StartListening()
         {
             while (ClientSocket.State == WebSocketState.Open)
@@ -37,20 +151,25 @@ namespace Solnet.Rpc.Core.Sockets
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"Exception caught: {e.Message}");
+                    _logger?.LogException(e);
                 }
             }
+            _logger?.Log(LogType.Log, $"Stopped reading messages. ClientSocket.State changed to {ClientSocket.State}");
+            ConnectionStateChangedEvent?.Invoke(this, State);
         }
 
+        /// <summary>
+        ///   Reads the next message from the socket.
+        /// </summary>
+        /// <param name="cancellationToken"> The cancelation token. </param>
+        /// <returns> Returns the task representing the asynchronous task. </returns>
         private async Task ReadNextMessage(CancellationToken cancellationToken = default)
         {
             var buffer = new byte[32768];
-            var mem = new ArraySegment<byte>(buffer);
-            var messageParts = new StringBuilder();
-            var count = 0;
-
+            var mem = new Memory<byte>(buffer);
             var result = await ClientSocket.ReceiveAsync(mem, cancellationToken).ConfigureAwait(false);
-            count = result.Count;
+            var count = result.Count;
+
             if (result.MessageType == WebSocketMessageType.Close)
             {
                 await ClientSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, cancellationToken);
@@ -60,25 +179,27 @@ namespace Solnet.Rpc.Core.Sockets
                 if (!result.EndOfMessage)
                 {
                     var ms = new MemoryStream();
-                    ms.Write(mem.ToArray(), 0, count);
+                    ms.Write(mem.Span);
 
                     while (!result.EndOfMessage)
                     {
                         result = await ClientSocket.ReceiveAsync(mem, cancellationToken).ConfigureAwait(false);
-                        UnityEngine.Debug.Log(Encoding.UTF8.GetString(mem.ToArray()));
-                        ms.Write(mem.ToArray(), 0, (count));
+                        ms.Write(mem.Slice(0, result.Count).Span);
                         count += result.Count;
                     }
 
-                    mem = new ArraySegment<byte>(ms.ToArray());
+                    mem = new Memory<byte>(ms.ToArray());
                 }
                 else
                 {
-                    mem = new ArraySegment<byte>(mem.Array, 0, count);
+                    mem = mem.Slice(0, count);
                 }
-
+                _connectionStats.AddReceived((uint)count);
                 HandleNewMessage(mem);
             }
         }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources ~StreamingRpcClient() { // Do
+        // not change this code. Put cleanup code in 'Dispose(bool disposing)' method Dispose(disposing: false); }
     }
 }

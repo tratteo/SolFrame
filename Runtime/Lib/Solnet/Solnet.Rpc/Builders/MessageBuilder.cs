@@ -1,4 +1,3 @@
-//using NBitcoin.DataEncoders;
 using Solnet.Rpc.Models;
 using Solnet.Rpc.Utilities;
 using Solnet.Wallet;
@@ -6,101 +5,114 @@ using Solnet.Wallet.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Solnet.Rpc.Builders
 {
     /// <summary>
-    ///   The message builder.
+    /// A compiled instruction within the message.
     /// </summary>
-    internal class MessageBuilder
+    public class MessageBuilder
     {
-        /// <summary>
-        ///   The base58 encoder instance.
-        /// </summary>
-        //private static readonly Base58Encoder Encoder = new Base58Encoder();
 
         /// <summary>
-        ///   The length of the block hash.
+        /// The length of the block hash.
         /// </summary>
         private const int BlockHashLength = 32;
 
         /// <summary>
-        ///   with read-write accounts first and read-only accounts following. The account keys list.
-        /// </summary>
-        private readonly AccountKeysList _accountKeysList;
-
-        /// <summary>
-        ///   The list of instructions contained within this transaction.
-        /// </summary>
-        private readonly List<TransactionInstruction> _instructions;
-
-        /// <summary>
-        ///   The message header.
+        /// The message header.
         /// </summary>
         private MessageHeader _messageHeader;
 
         /// <summary>
-        ///   The hash of a recent block.
+        /// The account keys list.
+        /// </summary>
+        private readonly AccountKeysList _accountKeysList;
+
+        /// <summary>
+        /// The list of instructions contained within this transaction.
+        /// </summary>
+        internal List<TransactionInstruction> Instructions { get; private set; }
+
+        /// <summary>
+        /// The hash of a recent block.
         /// </summary>
         internal string RecentBlockHash { get; set; }
 
         /// <summary>
-        ///   The transaction fee payer.
+        /// The nonce information to be used instead of the recent blockhash.
         /// </summary>
-        internal Account FeePayer { get; set; }
+        internal NonceInformation NonceInformation { get; set; }
 
         /// <summary>
-        ///   Initialize the message builder.
+        /// The transaction fee payer.
+        /// </summary>
+        internal PublicKey FeePayer { get; set; }
+
+        /// <summary>
+        /// Initialize the message builder.
         /// </summary>
         internal MessageBuilder()
         {
             _accountKeysList = new AccountKeysList();
-            _instructions = new List<TransactionInstruction>();
+            Instructions = new List<TransactionInstruction>();
         }
 
         /// <summary>
-        ///   Add an instruction to the message.
+        /// Add an instruction to the message.
         /// </summary>
-        /// <param name="instruction"> The instruction to add to the message. </param>
-        /// <returns> The message builder, so instruction addition can be chained. </returns>
+        /// <param name="instruction">The instruction to add to the message.</param>
+        /// <returns>The message builder, so instruction addition can be chained.</returns>
         internal MessageBuilder AddInstruction(TransactionInstruction instruction)
         {
             _accountKeysList.Add(instruction.Keys);
-            _accountKeysList.Add(new AccountMeta(instruction.ProgramId, false, false));
-            _instructions.Add(instruction);
-
+            _accountKeysList.Add(AccountMeta.ReadOnly(new PublicKey(instruction.ProgramId), false));
+            Instructions.Add(instruction);
             return this;
         }
 
         /// <summary>
+        /// Builds the message into the wire format.
         /// </summary>
-        /// <returns> </returns>
+        /// <returns>The encoded message.</returns>
         internal byte[] Build()
         {
-            if (RecentBlockHash == null)
-                // werent we supposed to fetch it from the api in this case?
-                throw new Exception("recent block hash is required");
-            if (_instructions == null)
+            if (RecentBlockHash == null && NonceInformation == null)
+                throw new Exception("recent block hash or nonce information is required");
+            if (Instructions == null)
                 throw new Exception("no instructions provided in the transaction");
+
+            // In case the user specified nonce information, we'll use it.
+            if (NonceInformation != null)
+            {
+                RecentBlockHash = NonceInformation.Nonce;
+                _accountKeysList.Add(NonceInformation.Instruction.Keys);
+                _accountKeysList.Add(AccountMeta.ReadOnly(new PublicKey(NonceInformation.Instruction.ProgramId),
+                    false));
+                List<TransactionInstruction> newInstructions = new() { NonceInformation.Instruction };
+                newInstructions.AddRange(Instructions);
+                Instructions = newInstructions;
+            }
 
             _messageHeader = new MessageHeader();
 
-            var keysList = GetAccountKeys();
-            var accountAddressesLength = ShortVectorEncoding.EncodeLength(keysList.Count);
-            var compiledInstructionsLength = 0;
-            var compiledInstructions = new List<CompiledInstruction>();
+            List<AccountMeta> keysList = GetAccountKeys();
+            byte[] accountAddressesLength = ShortVectorEncoding.EncodeLength(keysList.Count);
+            int compiledInstructionsLength = 0;
+            List<CompiledInstruction> compiledInstructions = new();
 
-            foreach (var instruction in _instructions)
+            foreach (TransactionInstruction instruction in Instructions)
             {
-                var keyCount = instruction.Keys.Count;
-                var keyIndices = new byte[keyCount];
+                int keyCount = instruction.Keys.Count;
+                byte[] keyIndices = new byte[keyCount];
 
-                for (var i = 0; i < keyCount; i++)
+                for (int i = 0; i < keyCount; i++)
                 {
-                    keyIndices[i] = (byte)FindAccountIndex(keysList, instruction.Keys[i].publicKey);
+                    keyIndices[i] = (byte)FindAccountIndex(keysList, instruction.Keys[i].PublicKeyBytes);
                 }
 
-                var compiledInstruction = new CompiledInstruction
+                CompiledInstruction compiledInstruction = new CompiledInstruction
                 {
                     ProgramIdIndex = (byte)FindAccountIndex(keysList, instruction.ProgramId),
                     KeyIndicesCount = ShortVectorEncoding.EncodeLength(keyCount),
@@ -112,145 +124,94 @@ namespace Solnet.Rpc.Builders
                 compiledInstructionsLength += compiledInstruction.Length();
             }
 
-            var accountKeysBufferSize = _accountKeysList.AccountList.Count * 32;
-            var accountKeysBuffer = new MemoryStream(accountKeysBufferSize);
-            var instructionsLength = ShortVectorEncoding.EncodeLength(compiledInstructions.Count);
+            int accountKeysBufferSize = _accountKeysList.AccountList.Count * 32;
+            MemoryStream accountKeysBuffer = new MemoryStream(accountKeysBufferSize);
+            byte[] instructionsLength = ShortVectorEncoding.EncodeLength(compiledInstructions.Count);
 
-            foreach (var accountMeta in keysList)
+            foreach (AccountMeta accountMeta in keysList)
             {
-                accountKeysBuffer.Write(accountMeta.publicKey, 0, accountMeta.publicKey.Length);
-                if (accountMeta.Signer)
+                accountKeysBuffer.Write(accountMeta.PublicKeyBytes);
+                if (accountMeta.IsSigner)
                 {
                     _messageHeader.RequiredSignatures += 1;
-                    if (!accountMeta.Writable)
+                    if (!accountMeta.IsWritable)
                         _messageHeader.ReadOnlySignedAccounts += 1;
                 }
                 else
                 {
-                    if (!accountMeta.Writable)
+                    if (!accountMeta.IsWritable)
                         _messageHeader.ReadOnlyUnsignedAccounts += 1;
                 }
             }
 
             #region Build Message Body
 
-            var messageBufferSize = MessageHeader.HeaderLength + BlockHashLength + accountAddressesLength.Length +
+            int messageBufferSize = MessageHeader.Layout.HeaderLength + BlockHashLength +
+                                    accountAddressesLength.Length +
                                     +instructionsLength.Length + compiledInstructionsLength + accountKeysBufferSize;
-            var buffer = new MemoryStream(messageBufferSize);
-            var messageHeaderBytes = _messageHeader.ToBytes();
+            MemoryStream buffer = new MemoryStream(messageBufferSize);
+            byte[] messageHeaderBytes = _messageHeader.ToBytes();
 
-            buffer.Write(messageHeaderBytes, 0, messageHeaderBytes.Length);
-            buffer.Write(accountAddressesLength, 0, accountAddressesLength.Length);
-            buffer.Write(accountKeysBuffer.ToArray(), 0, accountKeysBuffer.ToArray().Length);
-            buffer.Write(Encoders.Base58.DecodeData(RecentBlockHash), 0, Encoders.Base58.DecodeData(RecentBlockHash).Length);
-            buffer.Write(instructionsLength, 0, instructionsLength.Length);
+            buffer.Write(messageHeaderBytes);
+            buffer.Write(accountAddressesLength);
+            buffer.Write(accountKeysBuffer.ToArray());
+            buffer.Write(Encoders.Base58.DecodeData(RecentBlockHash));
+            buffer.Write(instructionsLength);
 
-            foreach (var compiledInstruction in compiledInstructions)
+            foreach (CompiledInstruction compiledInstruction in compiledInstructions)
             {
                 buffer.WriteByte(compiledInstruction.ProgramIdIndex);
-                buffer.Write(compiledInstruction.KeyIndicesCount, 0, compiledInstruction.KeyIndicesCount.Length);
-                buffer.Write(compiledInstruction.KeyIndices, 0, compiledInstruction.KeyIndices.Length);
-                buffer.Write(compiledInstruction.DataLength, 0, compiledInstruction.DataLength.Length);
-                buffer.Write(compiledInstruction.Data, 0, compiledInstruction.Data.Length);
+                buffer.Write(compiledInstruction.KeyIndicesCount);
+                buffer.Write(compiledInstruction.KeyIndices);
+                buffer.Write(compiledInstruction.DataLength);
+                buffer.Write(compiledInstruction.Data);
             }
 
-            #endregion Build Message Body
+            #endregion
 
             return buffer.ToArray();
         }
 
         /// <summary>
+        /// Gets the keys for the accounts present in the message.
         /// </summary>
-        /// <returns> </returns>
+        /// <returns>The list of <see cref="AccountMeta"/>.</returns>
         private List<AccountMeta> GetAccountKeys()
         {
-            var keysList = _accountKeysList.AccountList;
-            var feePayerIndex = FindAccountIndex(keysList, FeePayer.PublicKey);
+            List<AccountMeta> newList = new();
+            IList<AccountMeta> keysList = _accountKeysList.AccountList;
+            int feePayerIndex = FindAccountIndex(keysList, FeePayer.KeyBytes);
 
-            var newList = new List<AccountMeta>
+            if (feePayerIndex == -1)
             {
-                new AccountMeta(keysList[feePayerIndex].publicKey, true, true)
-            };
-            keysList.RemoveAt(feePayerIndex);
+                newList.Add(AccountMeta.Writable(FeePayer, true));
+            }
+            else
+            {
+                keysList.RemoveAt(feePayerIndex);
+                newList.Add(AccountMeta.Writable(FeePayer, true));
+            }
+
             newList.AddRange(keysList);
 
             return newList;
         }
 
         /// <summary>
+        /// Finds the index of the given public key in the accounts list.
         /// </summary>
-        /// <param name="accountMetas"> </param>
-        /// <param name="publicKey"> </param>
-        /// <returns> </returns>
-        /// <exception cref="Exception"> </exception>
-        private int FindAccountIndex(IList<AccountMeta> accountMetas, byte[] publicKey)
+        /// <param name="accountMetas">The <see cref="AccountMeta"/>.</param>
+        /// <param name="publicKey">The public key.</param>
+        /// <returns>The index of the</returns>
+        private static int FindAccountIndex(IList<AccountMeta> accountMetas, byte[] publicKey)
         {
-            for (var index = 0; index < accountMetas.Count; index++)
+            string encodedKey = Encoders.Base58.EncodeData(publicKey);
+            for (int index = 0; index < accountMetas.Count; index++)
             {
-                if (Encoders.Base58.EncodeData(accountMetas[index].publicKey) == Encoders.Base58.EncodeData(publicKey)) return index;
+                if (accountMetas[index].PublicKey == encodedKey) return index;
             }
 
-            throw new Exception($"could not find account index for public key: {Encoders.Base58.EncodeData(publicKey)}");
-        }
-
-        /// <summary>
-        ///   The message header.
-        /// </summary>
-        private class MessageHeader
-        {
-            /// <summary>
-            ///   The message header length.
-            /// </summary>
-            internal const int HeaderLength = 3;
-
-            /// <summary>
-            ///   The number of required signatures.
-            /// </summary>
-            internal byte RequiredSignatures { get; set; }
-
-            /// <summary>
-            ///   The number of read-only signed accounts.
-            /// </summary>
-            internal byte ReadOnlySignedAccounts { get; set; }
-
-            /// <summary>
-            ///   The number of read-only non-signed accounts.
-            /// </summary>
-            internal byte ReadOnlyUnsignedAccounts { get; set; }
-
-            /// <summary>
-            ///   Convert the message header to byte array format.
-            /// </summary>
-            /// <returns> The byte array. </returns>
-            internal byte[] ToBytes()
-            {
-                return new[] { RequiredSignatures, ReadOnlySignedAccounts, ReadOnlyUnsignedAccounts };
-            }
-        }
-
-        /// <summary>
-        ///   A compiled instruction within the message.
-        /// </summary>
-        private class CompiledInstruction
-        {
-            internal byte ProgramIdIndex { get; set; }
-
-            internal byte[] KeyIndicesCount { get; set; }
-
-            internal byte[] KeyIndices { get; set; }
-
-            internal byte[] DataLength { get; set; }
-
-            internal byte[] Data { get; set; }
-
-            /// <summary>
-            ///   Get the length of the compiled instruction.
-            /// </summary>
-            /// <returns> The length. </returns>
-            internal int Length()
-            {
-                return 1 + KeyIndicesCount.Length + KeyIndices.Length + DataLength.Length + Data.Length;
-            }
+            return -1;
         }
     }
 }

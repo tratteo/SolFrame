@@ -1,20 +1,30 @@
 ﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace Solnet.Rpc.Messages
 {
-    [System.Serializable]
+    /// <summary>
+    /// Rpc request message.
+    /// </summary>
     public class JsonRpcRequest : JsonRpcBase
     {
-        public string method;// { get; }
+        /// <summary>
+        /// The request method.
+        /// </summary>
+        public string Method { get; }
 
-        public IList<object> @params;// { get; }
+        /// <summary>
+        /// The method parameters list.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public IList<object> Params { get; }
 
         internal JsonRpcRequest(int id, string method, IList<object> parameters)
         {
-            @params = parameters;
-            this.method = method;
-            base.id = id;
-            jsonrpc = "2.0";
+            Params = parameters;
+            Method = method;
+            Id = id;
+            Jsonrpc = "2.0";
         }
     }
 }

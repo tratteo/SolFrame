@@ -7,15 +7,7 @@ namespace Solnet.KeyStore.Crypto
 {
     public class Scrypt
     {
-        private static byte[] SingleIterationPbkdf2(byte[] p, byte[] s, int dkLen)
-        {
-            PbeParametersGenerator pGen = new Pkcs5S2ParametersGenerator(new Sha256Digest());
-            pGen.Init(p, s, 1);
-            var key = (KeyParameter)pGen.GenerateDerivedMacParameters(dkLen * 8);
-            return key.GetKey();
-        }
-
-        public unsafe static byte[] CryptoScrypt(byte[] password, byte[] salt, int n, int r, int p, int dkLen)
+        public static unsafe byte[] CryptoScrypt(byte[] password, byte[] salt, int n, int r, int p, int dkLen)
         {
             var ba = new byte[128 * r * p + 63];
             var xYa = new byte[256 * r + 63];
@@ -40,47 +32,26 @@ namespace Solnet.KeyStore.Crypto
             return SingleIterationPbkdf2(password, ba, dkLen);
         }
 
-
-        /// <summary>
-        /// Copies a specified number of bytes from a source pointer to a destination pointer.
-        /// </summary>
-        private unsafe static void BulkCopy(void* dst, void* src, int len)
+        private static byte[] SingleIterationPbkdf2(byte[] p, byte[] s, int dkLen)
         {
-            var d = (byte*)dst;
-            var s = (byte*)src;
-
-            while (len >= 8)
-            {
-                *(ulong*)d = *(ulong*)s;
-                d += 8;
-                s += 8;
-                len -= 8;
-            }
-            if (len >= 4)
-            {
-                *(uint*)d = *(uint*)s;
-                d += 4;
-
-                s += 4;
-                len -= 4;
-            }
-            if (len >= 2)
-            {
-                *(ushort*)d = *(ushort*)s;
-                d += 2;
-                s += 2;
-                len -= 2;
-            }
-            if (len >= 1)
-            {
-                *d = *s;
-            }
+            PbeParametersGenerator pGen = new Pkcs5S2ParametersGenerator(new Sha256Digest());
+            pGen.Init(p, s, 1);
+            KeyParameter key = (KeyParameter)pGen.GenerateDerivedMacParameters(dkLen * 8);
+            return key.GetKey();
         }
 
         /// <summary>
-        /// Copies a specified number of bytes from a source pointer to a destination pointer.
+        ///   Copies a specified number of bytes from a source pointer to a destination pointer.
         /// </summary>
-        private unsafe static void BulkXor(void* dst, void* src, int len)
+        private static unsafe void BulkCopy(void* dst, void* src, int len)
+        {
+            System.Runtime.CompilerServices.Unsafe.CopyBlock(dst, src, (uint)len);
+        }
+
+        /// <summary>
+        ///   Copies a specified number of bytes from a source pointer to a destination pointer.
+        /// </summary>
+        private static unsafe void BulkXor(void* dst, void* src, int len)
         {
             var d = (byte*)dst;
             var s = (byte*)src;
@@ -113,9 +84,9 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Encode an integer to byte array on any alignment in little endian format.
+        ///   Encode an integer to byte array on any alignment in little endian format.
         /// </summary>
-        private unsafe static void Encode32(byte* p, uint x)
+        private static unsafe void Encode32(byte* p, uint x)
         {
             p[0] = (byte)(x & 0xff);
             p[1] = (byte)((x >> 8) & 0xff);
@@ -124,9 +95,9 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Decode an integer from byte array on any alignment in little endian format.
+        ///   Decode an integer from byte array on any alignment in little endian format.
         /// </summary>
-        private unsafe static uint Decode32(byte* p)
+        private static unsafe uint Decode32(byte* p)
         {
             return
                 (p[0] +
@@ -136,26 +107,26 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Apply the salsa20/8 core to the provided block.
+        ///   Apply the salsa20/8 core to the provided block.
         /// </summary>
-        private unsafe static void Salsa208(uint* b)
+        private static unsafe void Salsa208(uint* b)
         {
-            var x0 = b[0];
-            var x1 = b[1];
-            var x2 = b[2];
-            var x3 = b[3];
-            var x4 = b[4];
-            var x5 = b[5];
-            var x6 = b[6];
-            var x7 = b[7];
-            var x8 = b[8];
-            var x9 = b[9];
-            var x10 = b[10];
-            var x11 = b[11];
-            var x12 = b[12];
-            var x13 = b[13];
-            var x14 = b[14];
-            var x15 = b[15];
+            uint x0 = b[0];
+            uint x1 = b[1];
+            uint x2 = b[2];
+            uint x3 = b[3];
+            uint x4 = b[4];
+            uint x5 = b[5];
+            uint x6 = b[6];
+            uint x7 = b[7];
+            uint x8 = b[8];
+            uint x9 = b[9];
+            uint x10 = b[10];
+            uint x11 = b[11];
+            uint x12 = b[12];
+            uint x13 = b[13];
+            uint x14 = b[14];
+            uint x15 = b[15];
 
             for (var i = 0; i < 8; i += 2)
             {
@@ -206,19 +177,18 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Utility method for Salsa208.
+        ///   Utility method for Salsa208.
         /// </summary>
-        private unsafe static uint R(uint a, int b)
+        private static unsafe uint R(uint a, int b)
         {
             return (a << b) | (a >> (32 - b));
         }
 
         /// <summary>
-        /// Compute Bout = BlockMix_{salsa20/8, r}(Bin).  The input Bin must be 128r
-        /// bytes in length; the output Bout must also be the same size.
-        /// The temporary space X must be 64 bytes.
+        ///   Compute Bout = BlockMix_{salsa20/8, r}(Bin). The input Bin must be 128r bytes in length; the output Bout must also be the same
+        ///   size. The temporary space X must be 64 bytes.
         /// </summary>
-        private unsafe static void BlockMix(uint* bin, uint* bout, uint* x, int r)
+        private static unsafe void BlockMix(uint* bin, uint* bout, uint* x, int r)
         {
             /* 1: X <-- B_{2r - 1} */
             BulkCopy(x, &bin[(2 * r - 1) * 16], 64);
@@ -245,9 +215,9 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Return the result of parsing B_{2r-1} as a little-endian integer.
+        ///   Return the result of parsing B_{2r-1} as a little-endian integer.
         /// </summary>
-        private unsafe static long Integerify(uint* b, int r)
+        private static unsafe long Integerify(uint* b, int r)
         {
             var x = (uint*)(((byte*)b) + (2 * r - 1) * 64);
 
@@ -255,13 +225,11 @@ namespace Solnet.KeyStore.Crypto
         }
 
         /// <summary>
-        /// Compute B = SMix_r(B, N).  The input B must be 128r bytes in length;
-        /// the temporary storage V must be 128rN bytes in length; the temporary
-        /// storage XY must be 256r + 64 bytes in length.  The value N must be a
-        /// power of 2 greater than 1.  The arrays B, V, and XY must be aligned to a
-        /// multiple of 64 bytes.
+        ///   Compute B = SMix_r(B, N). The input B must be 128r bytes in length; the temporary storage V must be 128rN bytes in length; the
+        ///   temporary storage XY must be 256r + 64 bytes in length. The value N must be a power of 2 greater than 1. The arrays B, V, and
+        ///   XY must be aligned to a multiple of 64 bytes.
         /// </summary>
-        private unsafe static void SMix(byte* b, int r, int n, uint* v, uint* xy)
+        private static unsafe void SMix(byte* b, int r, int n, uint* v, uint* xy)
         {
             var x = xy;
             var y = &xy[32 * r];
@@ -313,6 +281,5 @@ namespace Solnet.KeyStore.Crypto
                 Encode32(&b[4 * k], x[k]);
             }
         }
-
     }
 }

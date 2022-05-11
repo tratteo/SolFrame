@@ -6,9 +6,15 @@ namespace Solnet.KeyStore.Crypto
     {
         private static readonly SecureRandom Random = new SecureRandom();
 
-        public byte[] GenerateRandomInitializationVector() => GenerateRandomBytes(16);
+        public byte[] GenerateRandomInitializationVector()
+        {
+            return GenerateRandomBytes(16);
+        }
 
-        public byte[] GenerateRandomSalt() => GenerateRandomBytes(32);
+        public byte[] GenerateRandomSalt()
+        {
+            return GenerateRandomBytes(32);
+        }
 
         private static byte[] GenerateRandomBytes(int size)
         {

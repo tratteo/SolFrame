@@ -1,4 +1,3 @@
-//using NBitcoin.DataEncoders;
 using Solnet.Rpc.Models;
 using Solnet.Rpc.Utilities;
 using Solnet.Wallet;
@@ -10,35 +9,33 @@ using System.IO;
 namespace Solnet.Rpc.Builders
 {
     /// <summary>
-    ///   Implements a builder for transactions.
+    /// Implements a builder for transactions.
     /// </summary>
     public class TransactionBuilder
     {
         /// <summary>
-        ///   The base58 encoder instance.
+        /// The length of a signature.
         /// </summary>
-        //private static readonly Base58Encoder Encoder = new Base58Encoder();
+        public const int SignatureLength = 64;
 
         /// <summary>
-        ///   The length of a signature.
-        /// </summary>
-        private const int SignatureLength = 64;
-
-        /// <summary>
-        ///   The builder of the message contained within the transaction.
+        /// The builder of the message contained within the transaction.
         /// </summary>
         private readonly MessageBuilder _messageBuilder;
 
         /// <summary>
-        ///   The signatures present in the message.
+        /// The signatures present in the message.
         /// </summary>
         private readonly List<string> _signatures;
 
         /// <summary>
-        ///   The message after being serialized.
+        /// The message after being serialized.
         /// </summary>
         private byte[] _serializedMessage;
 
+        /// <summary>
+        /// Default constructor that initializes the transaction builder.
+        /// </summary>
         public TransactionBuilder()
         {
             _messageBuilder = new MessageBuilder();
@@ -46,10 +43,68 @@ namespace Solnet.Rpc.Builders
         }
 
         /// <summary>
-        ///   Sets the recent block hash for the transaction.
+        /// Serializes the message into a byte array.
         /// </summary>
-        /// <param name="recentBlockHash"> </param>
-        /// <returns> The transaction builder, so instruction addition can be chained. </returns>
+        public byte[] Serialize()
+        {
+            byte[] signaturesLength = ShortVectorEncoding.EncodeLength(_signatures.Count);
+            if (_serializedMessage == null)
+                _serializedMessage = _messageBuilder.Build();
+            MemoryStream buffer = new(signaturesLength.Length + _signatures.Count * SignatureLength + _serializedMessage.Length);
+
+            buffer.Write(signaturesLength);
+            foreach (string signature in _signatures)
+            {
+                buffer.Write(Encoders.Base58.DecodeData(signature));
+            }
+            buffer.Write(_serializedMessage);
+
+            return buffer.ToArray();
+        }
+
+        /// <summary>
+        /// Sign the transaction message with each of the signer's keys.
+        /// </summary>
+        /// <param name="signers">The list of signers.</param>
+        /// <exception cref="Exception">Throws exception when the list of signers is null or empty or when the fee payer hasn't been set.</exception>
+        private void Sign(IList<Account> signers)
+        {
+            if (signers == null || signers.Count == 0) throw new Exception("no signers for the transaction");
+
+            if (_messageBuilder.FeePayer == null)
+                throw new Exception("fee payer is required");
+
+            _serializedMessage = _messageBuilder.Build();
+
+            foreach (Account signer in signers)
+            {
+                byte[] signatureBytes = signer.Sign(_serializedMessage);
+                _signatures.Add(Encoders.Base58.EncodeData(signatureBytes));
+            }
+        }
+
+        /// <summary>
+        /// Adds a signature to the current transaction.
+        /// </summary>
+        /// <param name="signature">The signature.</param>
+        public TransactionBuilder AddSignature(byte[] signature)
+            => AddSignature(Encoders.Base58.EncodeData(signature));
+
+        /// <summary>
+        /// Adds a signature to the current transaction.
+        /// </summary>
+        /// <param name="signature">The signature.</param>
+        public TransactionBuilder AddSignature(string signature)
+        {
+            _signatures.Add(signature);
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the recent block hash for the transaction.
+        /// </summary>
+        /// <param name="recentBlockHash">The recent block hash as a base58 encoded string.</param>
+        /// <returns>The transaction builder, so instruction addition can be chained.</returns>
         public TransactionBuilder SetRecentBlockHash(string recentBlockHash)
         {
             _messageBuilder.RecentBlockHash = recentBlockHash;
@@ -57,10 +112,33 @@ namespace Solnet.Rpc.Builders
         }
 
         /// <summary>
-        ///   Adds a new instruction to the transaction.
+        /// Sets the nonce information for the transaction.
+        /// <remarks>Whenever this is set, it is used instead of the blockhash.</remarks>
         /// </summary>
-        /// <param name="instruction"> The instruction to add. </param>
-        /// <returns> The transaction builder, so instruction addition can be chained. </returns>
+        /// <param name="nonceInfo">The nonce information object to use.</param>
+        /// <returns>The transaction builder, so instruction addition can be chained.</returns>
+        public TransactionBuilder SetNonceInformation(NonceInformation nonceInfo)
+        {
+            _messageBuilder.NonceInformation = nonceInfo;
+            return this;
+        }
+
+        /// <summary>
+        /// Sets the fee payer for the transaction.
+        /// </summary>
+        /// <param name="account">The public key of the account that will pay the transaction fee</param>
+        /// <returns>The transaction builder, so instruction addition can be chained.</returns>
+        public TransactionBuilder SetFeePayer(PublicKey account)
+        {
+            _messageBuilder.FeePayer = account;
+            return this;
+        }
+
+        /// <summary>
+        /// Adds a new instruction to the transaction.
+        /// </summary>
+        /// <param name="instruction">The instruction to add.</param>
+        /// <returns>The transaction builder, so instruction addition can be chained.</returns>
         public TransactionBuilder AddInstruction(TransactionInstruction instruction)
         {
             _messageBuilder.AddInstruction(instruction);
@@ -68,62 +146,34 @@ namespace Solnet.Rpc.Builders
         }
 
         /// <summary>
-        ///   Signs the transaction's message with the passed signer and add it to the transaction, serializing it.
+        /// Compiles the transaction's message into wire format, ready to be signed.
         /// </summary>
-        /// <param name="signer"> The signer. </param>
-        /// <returns> The serialized transaction. </returns>
+        /// <returns>The serialized message.</returns>
+        public byte[] CompileMessage()
+        {
+            return _messageBuilder.Build();
+        }
+
+        /// <summary>
+        /// Signs the transaction's message with the passed signer and add it to the transaction, serializing it.
+        /// </summary>
+        /// <param name="signer">The signer.</param>
+        /// <returns>The serialized transaction.</returns>
         public byte[] Build(Account signer)
         {
             return Build(new List<Account> { signer });
         }
 
         /// <summary>
-        ///   Signs the transaction's message with the passed list of signers and adds them to the transaction, serializing it.
+        /// Signs the transaction's message with the passed list of signers and adds them to the transaction, serializing it.
         /// </summary>
-        /// <param name="signers"> The list of signers. </param>
-        /// <returns> The serialized transaction. </returns>
+        /// <param name="signers">The list of signers.</param>
+        /// <returns>The serialized transaction.</returns>
         public byte[] Build(IList<Account> signers)
         {
             Sign(signers);
 
             return Serialize();
-        }
-
-        /// <summary>
-        ///   Serializes the message into a byte array.
-        /// </summary>
-        private byte[] Serialize()
-        {
-            var signaturesLength = ShortVectorEncoding.EncodeLength(_signatures.Count);
-            var buffer = new MemoryStream(signaturesLength.Length + _signatures.Count * SignatureLength + _serializedMessage.Length);
-
-            buffer.Write(signaturesLength, 0, signaturesLength.Length);
-            foreach (var signature in _signatures)
-            {
-                buffer.Write(Encoders.Base58.DecodeData(signature), 0, Encoders.Base58.DecodeData(signature).Length);
-            }
-            buffer.Write(_serializedMessage, 0, _serializedMessage.Length);
-
-            return buffer.ToArray();
-        }
-
-        /// <summary>
-        ///   Sign the transaction message with each of the signer's keys.
-        /// </summary>
-        /// <param name="signers"> The list of signers. </param>
-        /// <exception cref="Exception"> Throws exception when the list of signers is null or empty. </exception>
-        private void Sign(IList<Account> signers)
-        {
-            if (signers == null || signers.Count == 0) throw new Exception("no signers for the transaction");
-
-            _messageBuilder.FeePayer = signers[0];
-            _serializedMessage = _messageBuilder.Build();
-
-            foreach (var signer in signers)
-            {
-                var signatureBytes = signer.Sign(_serializedMessage);
-                _signatures.Add(Encoders.Base58.EncodeData(signatureBytes));
-            }
         }
     }
 }

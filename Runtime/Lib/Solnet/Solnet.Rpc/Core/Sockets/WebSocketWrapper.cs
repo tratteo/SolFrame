@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,12 +9,16 @@ namespace Solnet.Rpc.Core.Sockets
     {
         private readonly ClientWebSocket webSocket;
 
-        public WebSocketState State => webSocket.State;
-
         internal WebSocketWrapper(ClientWebSocket webSocket)
         {
             this.webSocket = webSocket;
         }
+
+        public WebSocketCloseStatus? CloseStatus => webSocket.CloseStatus;
+
+        public string CloseStatusDescription => webSocket.CloseStatusDescription;
+
+        public WebSocketState State => webSocket.State;
 
         public Task CloseAsync(WebSocketCloseStatus closeStatus, string statusDescription, CancellationToken cancellationToken)
             => webSocket.CloseAsync(closeStatus, statusDescription, cancellationToken);
@@ -23,22 +26,17 @@ namespace Solnet.Rpc.Core.Sockets
         public Task ConnectAsync(Uri uri, CancellationToken cancellationToken)
             => webSocket.ConnectAsync(uri, cancellationToken);
 
-        public Task<WebSocketReceiveResult> ReceiveAsync(ArraySegment<byte> buffer, CancellationToken cancellationToken)
-        {
-            return webSocket.ReceiveAsync(new ArraySegment<byte>(buffer.Array), cancellationToken);
-        }
+        public Task CloseAsync(CancellationToken cancellationToken)
+            => webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, cancellationToken);
 
-        public Task SendAsync(List<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
-            => webSocket.SendAsync(new ArraySegment<byte>(buffer.ToArray()), messageType, endOfMessage, cancellationToken);
+        public ValueTask<ValueWebSocketReceiveResult> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken)
+            => webSocket.ReceiveAsync(buffer, cancellationToken);
+
+        public ValueTask SendAsync(ReadOnlyMemory<byte> buffer, WebSocketMessageType messageType, bool endOfMessage, CancellationToken cancellationToken)
+            => webSocket.SendAsync(buffer, messageType, endOfMessage, cancellationToken);
 
         #region IDisposable Support
-
         private bool disposedValue = false; // To detect redundant calls
-
-        public void Dispose()
-        {
-            Dispose(true);
-        }
 
         private void Dispose(bool disposing)
         {
@@ -53,6 +51,10 @@ namespace Solnet.Rpc.Core.Sockets
             }
         }
 
-        #endregion IDisposable Support
+        public void Dispose()
+        {
+            Dispose(true);
+        }
+        #endregion
     }
 }
