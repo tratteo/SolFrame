@@ -1,8 +1,8 @@
 {
-    "name": "SolFrame",
-    "rootNamespace": "SolFrame",
+    "name": "SolFrame.Editor",
+    "rootNamespace": "SolFrame.Editor",
     "references": [
-        "GUID:b1e53f0087f5cd743bb018edbc1c8ef8"
+        "GUID:081911f1826de0e4785b91dcee25bcb1"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
