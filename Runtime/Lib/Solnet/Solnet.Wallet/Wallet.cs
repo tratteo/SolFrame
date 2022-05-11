@@ -1,6 +1,6 @@
 using Chaos.NaCl;
-using SolFrame.Wallet.Utilities;
 using Solnet.Wallet.Bip39;
+using Solnet.Wallet.Utilities;
 using System;
 using System.Linq;
 

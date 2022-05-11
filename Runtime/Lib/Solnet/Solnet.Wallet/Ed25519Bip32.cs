@@ -1,7 +1,7 @@
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
-using SolFrame.Wallet.Utilities;
+using Solnet.Wallet.Utilities;
 using System;
 using System.Buffers.Binary;
 using System.IO;

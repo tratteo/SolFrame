@@ -1,5 +1,4 @@
 using Org.BouncyCastle.Security;
-using SolFrame.Wallet.Utilities;
 using System;
 
 namespace Solnet.Wallet.Utilities

@@ -10,5 +10,6 @@ namespace SolFrame.Editor
         public static readonly Texture2D Solframe = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Path}/solframe.png");
         public static readonly Texture2D Github = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Path}/github.png");
         public static readonly Texture2D Solana = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Path}/solana.png");
+        public static readonly Texture2D HeartSmall = AssetDatabase.LoadAssetAtPath<Texture2D>($"{Path}/heart_small.png");
     }
 }

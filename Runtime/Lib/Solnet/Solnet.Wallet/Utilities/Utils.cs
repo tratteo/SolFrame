@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-namespace SolFrame.Wallet.Utilities
+namespace Solnet.Wallet.Utilities
 {
     /// <summary>
     ///   Implements utility methods to be used in the wallet.

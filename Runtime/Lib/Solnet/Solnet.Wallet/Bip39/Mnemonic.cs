@@ -1,7 +1,6 @@
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
-using SolFrame.Wallet.Utilities;
 using Solnet.Wallet.Utilities;
 using System;
 using System.Diagnostics;

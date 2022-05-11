@@ -63,7 +63,7 @@ namespace SolFrame.Editor
             if (GUI.Button(copyButtonRect, "Copy", GUI.skin.button))
             {
                 GUIUtility.systemCopyBuffer = Resources.FundPublicKey;
-                ShowNotification(new GUIContent() { text = "Copied to clipboard" }, 0.5F);
+                ShowNotification(new GUIContent() { text = "Copied to clipboard", image = Resources.HeartSmall }, 0.5F);
             }
         }
     }
