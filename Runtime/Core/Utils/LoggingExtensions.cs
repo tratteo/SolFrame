@@ -2,7 +2,7 @@
 
 namespace SolFrame.Utils
 {
-    internal static class LoggingExtensions
+    public static class LoggingExtensions
     {
         public static void LogObj(this Object obj, object message, LogType logType = LogType.Log)
         {

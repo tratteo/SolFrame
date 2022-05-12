@@ -30,17 +30,25 @@ namespace SolFrame
         public void BatchRequest(Action<SolanaRpcBatchWithCallbacks> requestFactory) => requestFactory.Invoke(rpcBatcher);
 
         /// <summary>
-        ///   Flush the <see cref="SolanaRpcBatchWithCallbacks"/> non blocking
+        ///   Flush the <see cref="SolanaRpcBatchWithCallbacks"/>
         /// </summary>
-        public void FlushBatch() => _ = Task.Run(() => rpcBatcher.Flush());
+        public async Task FlushBatchAsync() => await Task.Run(() => rpcBatcher.Flush());
 
-        private async void OnDestroy()
-        {
-            await StreamingRpcClient?.DisconnectAsync();
-            StreamingRpcClient?.Dispose();
-        }
+        /// <summary>
+        ///   Connect the <see cref="IStreamingRpcClient"/>
+        /// </summary>
+        /// <returns> </returns>
+        public async Task ConnectStreamingAsync() => await StreamingRpcClient.ConnectAsync();
 
-        private async void Awake()
+        /// <summary>
+        ///   Disconnect the <see cref="IStreamingRpcClient"/>
+        /// </summary>
+        /// <returns> </returns>
+        public async Task DisconnectStreamingAsync() => await StreamingRpcClient.DisconnectAsync();
+
+        private void OnDestroy() => _ = DisconnectStreamingAsync();
+
+        private void Awake()
         {
             if (Instance == null)
             {
@@ -51,7 +59,7 @@ namespace SolFrame
             {
                 Destroy(gameObject);
             }
-            await Initialize();
+            _ = Initialize();
         }
 
         private async Task Initialize()
@@ -62,7 +70,7 @@ namespace SolFrame
             rpcBatcher.AutoExecute(batchAutoExecuteMode, triggerCount);
             if (connectOnInit)
             {
-                await StreamingRpcClient.ConnectAsync();
+                await ConnectStreamingAsync();
             }
         }
     }

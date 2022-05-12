@@ -5,7 +5,6 @@ using SolFrame.Utils;
 using Solnet.Extensions;
 using Solnet.Rpc.Core.Sockets;
 using Solnet.Rpc.Messages;
-using Solnet.Rpc.Models;
 using Solnet.Rpc.Types;
 using Solnet.Wallet;
 using System;
@@ -22,7 +21,7 @@ namespace SolFrame
     public class Wallet : MonoBehaviour
     {
         private readonly List<SubscriptionState> subscriptions = new List<SubscriptionState>();
-
+        [SerializeField] private float refreshTime = 5F;
         [Header("Debug")]
         [SerializeField] private bool enableLogs = true;
 
@@ -32,13 +31,21 @@ namespace SolFrame
 
         public bool IsSubscribed => subscriptions.Count > 0;
 
-        #region CachedValues
-
-        public Cached<ulong> SolBalance { get; private set; } = new Cached<ulong>();
-
         public TokenWallet TokenWallet { get; private set; }
 
-        #endregion CachedValues
+        public bool IsTokenWalletLoaded { get; private set; }
+
+        #region MainThreadSync
+
+        private readonly Queue<Action> syncJobs = new Queue<Action>();
+
+        /// <summary>
+        ///   Enqueue an <see cref="Action"/> to be executed synchronously on the main thread
+        /// </summary>
+        /// <param name="action"> </param>
+        private void OnMainThread(Action action) => syncJobs.Enqueue(action);
+
+        #endregion MainThreadSync
 
         /// <summary>
         ///   Called when the <see cref="AccountData"/> configuration is loaded
@@ -49,6 +56,58 @@ namespace SolFrame
         ///   Called when the <see cref="AccountData"/> configuration is unloaded
         /// </summary>
         public event Action Unloaded = delegate { };
+
+        /// <summary>
+        ///   Called when the <see cref="Solnet.Extensions.TokenWallet"/> is loaded. The <see cref="Solnet.Extensions.TokenWallet"/> is
+        ///   loaded right after the <see cref="Loaded"/> event is called but process is async.
+        /// </summary>
+        public event Action TokenWalletLoaded = delegate { };
+
+        /// <summary>
+        ///   Called when the <see cref="Solnet.Extensions.TokenWallet"/> is refreshed
+        /// </summary>
+        public event Action TokenWalletRefreshed = delegate { };
+
+        private void Update()
+        {
+            if (syncJobs.Count > 0)
+            {
+                lock (syncJobs)
+                {
+                    syncJobs.Dequeue().Invoke();
+                }
+            }
+        }
+
+        private void Start()
+        {
+            if (SolanaEndpointManager.Instance is null)
+            {
+                this.LogObj("Unable to locate the SolanaEndpointManager instance", ref enableLogs, LogType.Warning);
+            }
+            _ = TokenWalletRefreshDaemon();
+        }
+
+        /// <summary>
+        ///   Try to retrieve a Solana <see cref="Solnet.Wallet.Account"/> from the <c> byte[] </c> of the private key and checks its validity
+        /// </summary>
+        /// <param name="plainPrivateKey"> </param>
+        /// <param name="account"> </param>
+        /// <returns> <c> True </c> if the <see cref="Solnet.Wallet.Account"/> is created successfully </returns>
+        private bool TryGetAccountFromPrivateKey(byte[] plainPrivateKey, out Account account)
+        {
+            account = null;
+            if (plainPrivateKey is null) return false;
+            var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
+            var pubKey = new PublicKey(privKey.KeyBytes[32..]);
+
+            // Checks if the account is an existing one
+            if (!pubKey.IsValid()) return false;
+            account = new Account(privKey.Key, pubKey.Key);
+            return true;
+        }
+
+        #region Loading
 
         /// <summary>
         ///   Load the existing <see cref="AccountData"/>
@@ -91,14 +150,16 @@ namespace SolFrame
         /// </summary>
         public void Unload()
         {
-            Unsubscribe();
+            TokenWallet = null;
+            IsTokenWalletLoaded = false;
             IsLoaded = false;
             Account = null;
             Unloaded?.Invoke();
         }
 
         /// <summary>
-        ///   Create a localstore of a new <see cref="AccountData"/> for the wallet. If already existing, overwrite it
+        ///   Create a localstore of a new <see cref="AccountData"/> for the wallet in the <see cref="Application.persistentDataPath"/>. If
+        ///   already existing, overwrite it
         /// </summary>
         /// <param name="privateKey"> </param>
         /// <param name="password"> </param>
@@ -127,6 +188,31 @@ namespace SolFrame
         }
 
         /// <summary>
+        ///   Load the <see cref="Solnet.Extensions.TokenWallet"/>
+        /// </summary>
+        private async Task LoadTokenWalletAsync()
+        {
+            if (!IsLoaded) return;
+            TokenWallet = await TokenWallet.LoadAsync(SolanaEndpointManager.Instance.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey);
+            OnMainThread(() => TokenWalletLoaded?.Invoke());
+            IsTokenWalletLoaded = true;
+        }
+
+        private void OnLoad()
+        {
+            _ = InitializeCache();
+            _ = LoadTokenWalletAsync();
+            Loaded?.Invoke();
+            this.LogObj("Successfully loaded the AccoundData", ref enableLogs);
+        }
+
+        #endregion Loading
+
+        #region Cache
+
+        public Cached<ulong> SolBalance { get; private set; } = new Cached<ulong>();
+
+        /// <summary>
         ///   Clear all the <see cref="Cached{T}"/>
         /// </summary>
         public void ClearCache()
@@ -138,78 +224,15 @@ namespace SolFrame
         /// <summary>
         ///   Initialize all the <see cref="Cached{T}"/> in batch using the <see cref="Solnet.Rpc.SolanaRpcBatchWithCallbacks"/>
         /// </summary>
-        public void InitializeCache()
+        private async Task InitializeCache()
         {
             SolanaEndpointManager.Instance.BatchRequest(batcher =>
                 batcher.GetBalance(Account.PublicKey, Commitment.Finalized, (res, ex) =>
                     HandleCached(SolBalance, res, ex)));
+            await SolanaEndpointManager.Instance.FlushBatchAsync();
+
             this.LogObj("Cache initialized", ref enableLogs);
-            SolanaEndpointManager.Instance.FlushBatch();
-            Task.Run(async () => await TokenWallet.LoadAsync(SolanaEndpointManager.Instance.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey));
         }
-
-        /// <summary>
-        ///   Subscribe to the <see cref="Solnet.Rpc.IStreamingRpcClient"/> if not already subscribed
-        /// </summary>
-        public bool Subscribe()
-        {
-            if (subscriptions.Count > 0) return false;
-            var streamingClient = SolanaEndpointManager.Instance.StreamingRpcClient;
-            subscriptions.Add(streamingClient.SubscribeAccountInfo(Account.PublicKey, AccountInfoSubscriptionHandler));
-            this.LogObj("Subscription registered", ref enableLogs);
-            return true;
-        }
-
-        /// <summary>
-        ///   Unsubscribe from the <see cref="Solnet.Rpc.IStreamingRpcClient"/>
-        /// </summary>
-        public void Unsubscribe()
-        {
-            var tasks = new Task[subscriptions.Count];
-            for (var i = 0; i < subscriptions.Count; i++)
-            {
-                tasks[i] = SolanaEndpointManager.Instance.StreamingRpcClient.UnsubscribeAsync(subscriptions[i]);
-            }
-            Task.WhenAll(tasks);
-            if (subscriptions.Count > 0) this.LogObj("Unsubscription successful", ref enableLogs);
-            subscriptions.Clear();
-        }
-
-        private void OnLoad()
-        {
-            InitializeCache();
-            Loaded?.Invoke();
-            this.LogObj("Account loaded", ref enableLogs);
-        }
-
-        private void Start()
-        {
-            if (SolanaEndpointManager.Instance is null)
-            {
-                this.LogObj("Unable to locate the SolanaEndpointManager instance", ref enableLogs, LogType.Warning);
-            }
-        }
-
-        /// <summary>
-        ///   Try to retrieve a Solana <see cref="Solnet.Wallet.Account"/> from the <c> byte[] </c> of the private key and checks its validity
-        /// </summary>
-        /// <param name="plainPrivateKey"> </param>
-        /// <param name="account"> </param>
-        /// <returns> <c> True </c> if the <see cref="Solnet.Wallet.Account"/> is created successfully </returns>
-        private bool TryGetAccountFromPrivateKey(byte[] plainPrivateKey, out Account account)
-        {
-            account = null;
-            if (plainPrivateKey is null) return false;
-            var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
-            var pubKey = new PublicKey(privKey.KeyBytes[32..]);
-
-            // Checks if the account is an existing one
-            if (!pubKey.IsValid()) return false;
-            account = new Account(privKey.Key, pubKey.Key);
-            return true;
-        }
-
-        #region Cache
 
         private void HandleCached<T>(Cached<T> cached, ResponseValue<T> response, Exception exception)
         {
@@ -219,13 +242,17 @@ namespace SolFrame
 
         #endregion Cache
 
-        #region Subscription
-
-        private void AccountInfoSubscriptionHandler(SubscriptionState state, ResponseValue<AccountInfo> response)
+        private async Task TokenWalletRefreshDaemon()
         {
-            SolBalance.Update(response.Value.Lamports);
+            while (true)
+            {
+                if (TokenWallet is not null)
+                {
+                    await TokenWallet.RefreshAsync();
+                    OnMainThread(() => TokenWalletRefreshed?.Invoke());
+                }
+                await Task.Delay((int)(refreshTime * 1E3));
+            }
         }
-
-        #endregion Subscription
     }
 }
