@@ -1,4 +1,5 @@
-﻿using UnityEditor;
+﻿using Solnet.Rpc.Types;
+using UnityEditor;
 using UnityEngine;
 
 namespace SolFrame.Editor
@@ -23,6 +24,18 @@ namespace SolFrame.Editor
             {
                 serProp = PropertyField("cluster", "Cluster");
             }
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Streaming", EditorStyles.boldLabel);
+            serProp = PropertyField("connectOnInit", "Connect on init", "Connect to the WebSocket on initialization");
+
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Batch", EditorStyles.boldLabel);
+            serProp = PropertyField("batchAutoExecuteMode", "Batch execution mode", "How to trigger the execution of the batch composer");
+            if (serProp.enumValueIndex != (int)BatchAutoExecuteMode.Manual)
+            {
+                serProp = PropertyField("triggerCount", "Trigger count", "Number of requests that trigger the batch execution");
+            }
+
             serializedObject.ApplyModifiedProperties();
         }
 

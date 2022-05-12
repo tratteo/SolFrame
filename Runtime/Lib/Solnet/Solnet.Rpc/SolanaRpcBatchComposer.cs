@@ -302,6 +302,10 @@ namespace Solnet.Rpc
                     Execute(_rpcClient);
                     break;
 
+                case BatchAutoExecuteMode.Manual:
+                    Execute(_rpcClient);
+                    break;
+
                 default:
                     throw new ApplicationException("BatchComposer AutoExecute mode not set");
             }
