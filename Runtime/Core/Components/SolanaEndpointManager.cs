@@ -36,8 +36,8 @@ namespace SolFrame
 
         private async void OnDestroy()
         {
-            await StreamingRpcClient.DisconnectAsync();
-            StreamingRpcClient.Dispose();
+            await StreamingRpcClient?.DisconnectAsync();
+            StreamingRpcClient?.Dispose();
         }
 
         private async void Awake()

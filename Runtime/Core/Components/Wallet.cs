@@ -2,6 +2,7 @@ using SolFrame.Cryptography;
 using SolFrame.LocalStore;
 using SolFrame.Statics;
 using SolFrame.Utils;
+using Solnet.Extensions;
 using Solnet.Rpc.Core.Sockets;
 using Solnet.Rpc.Messages;
 using Solnet.Rpc.Models;
@@ -34,6 +35,8 @@ namespace SolFrame
         #region CachedValues
 
         public Cached<ulong> SolBalance { get; private set; } = new Cached<ulong>();
+
+        public TokenWallet TokenWallet { get; private set; }
 
         #endregion CachedValues
 
@@ -123,42 +126,6 @@ namespace SolFrame
             return true;
         }
 
-        private void OnLoad()
-        {
-            InitializeCache();
-            Loaded?.Invoke();
-            this.LogObj("Account loaded", ref enableLogs);
-        }
-
-        private void Start()
-        {
-            if (SolanaEndpointManager.Instance is null)
-            {
-                this.LogObj("Unable to locate the SolanaEndpointManager instance", ref enableLogs, LogType.Warning);
-            }
-        }
-
-        /// <summary>
-        ///   Try to retrieve a Solana <see cref="Solnet.Wallet.Account"/> from the <c> byte[] </c> of the private key and checks its validity
-        /// </summary>
-        /// <param name="plainPrivateKey"> </param>
-        /// <param name="account"> </param>
-        /// <returns> <c> True </c> if the <see cref="Solnet.Wallet.Account"/> is created successfully </returns>
-        private bool TryGetAccountFromPrivateKey(byte[] plainPrivateKey, out Account account)
-        {
-            account = null;
-            if (plainPrivateKey is null || plainPrivateKey.Length != 64) return false;
-            var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
-            var pubKey = new PublicKey(privKey.KeyBytes[32..]);
-
-            // Checks if the account is an existing one
-            if (!pubKey.IsValid()) return false;
-            account = new Account(privKey.Key, pubKey.Key);
-            return true;
-        }
-
-        #region Cache
-
         /// <summary>
         ///   Clear all the <see cref="Cached{T}"/>
         /// </summary>
@@ -177,17 +144,9 @@ namespace SolFrame
                 batcher.GetBalance(Account.PublicKey, Commitment.Finalized, (res, ex) =>
                     HandleCached(SolBalance, res, ex)));
             this.LogObj("Cache initialized", ref enableLogs);
+            SolanaEndpointManager.Instance.FlushBatch();
+            Task.Run(async () => await TokenWallet.LoadAsync(SolanaEndpointManager.Instance.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey));
         }
-
-        private void HandleCached<T>(Cached<T> cached, ResponseValue<T> response, Exception exception)
-        {
-            if (exception is null) cached.Update(response.Value);
-            else Debug.LogException(exception);
-        }
-
-        #endregion Cache
-
-        #region Subscription
 
         /// <summary>
         ///   Subscribe to the <see cref="Solnet.Rpc.IStreamingRpcClient"/> if not already subscribed
@@ -215,6 +174,52 @@ namespace SolFrame
             if (subscriptions.Count > 0) this.LogObj("Unsubscription successful", ref enableLogs);
             subscriptions.Clear();
         }
+
+        private void OnLoad()
+        {
+            InitializeCache();
+            Loaded?.Invoke();
+            this.LogObj("Account loaded", ref enableLogs);
+        }
+
+        private void Start()
+        {
+            if (SolanaEndpointManager.Instance is null)
+            {
+                this.LogObj("Unable to locate the SolanaEndpointManager instance", ref enableLogs, LogType.Warning);
+            }
+        }
+
+        /// <summary>
+        ///   Try to retrieve a Solana <see cref="Solnet.Wallet.Account"/> from the <c> byte[] </c> of the private key and checks its validity
+        /// </summary>
+        /// <param name="plainPrivateKey"> </param>
+        /// <param name="account"> </param>
+        /// <returns> <c> True </c> if the <see cref="Solnet.Wallet.Account"/> is created successfully </returns>
+        private bool TryGetAccountFromPrivateKey(byte[] plainPrivateKey, out Account account)
+        {
+            account = null;
+            if (plainPrivateKey is null) return false;
+            var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
+            var pubKey = new PublicKey(privKey.KeyBytes[32..]);
+
+            // Checks if the account is an existing one
+            if (!pubKey.IsValid()) return false;
+            account = new Account(privKey.Key, pubKey.Key);
+            return true;
+        }
+
+        #region Cache
+
+        private void HandleCached<T>(Cached<T> cached, ResponseValue<T> response, Exception exception)
+        {
+            if (exception is null) cached.Update(response.Value);
+            else Debug.LogException(exception);
+        }
+
+        #endregion Cache
+
+        #region Subscription
 
         private void AccountInfoSubscriptionHandler(SubscriptionState state, ResponseValue<AccountInfo> response)
         {
