@@ -2,14 +2,15 @@
     "name": "SolFrame",
     "rootNamespace": "SolFrame",
     "references": [
-        "GUID:b1e53f0087f5cd743bb018edbc1c8ef8"
+        "GUID:b1e53f0087f5cd743bb018edbc1c8ef8",
+        "GUID:3af6230c1733029488ddb22cbfa82416"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "Fleck.dll"
+        "OneOf.dll"
     ],
     "autoReferenced": true,
     "defineConstraints": [],

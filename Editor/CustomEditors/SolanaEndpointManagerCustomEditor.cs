@@ -11,14 +11,20 @@ namespace SolFrame.Editor
         {
             serializedObject.Update();
             SerializedProperty serProp;
+
+            GUI.enabled = false;
+            EditorGUILayout.ObjectField("Script", target, typeof(SerializedProperty), true);
+
+            GUI.enabled = true;
             EditorGUILayout.LabelField("Singleton", EditorStyles.boldLabel);
             serProp = PropertyField("dontDestroyOnLoad", "Dont destroy on load");
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Endpoint", EditorStyles.boldLabel);
-            serProp = PropertyField("useCustomEndpoint", "Use custom endpoint");
+            serProp = PropertyField("useCustomEndpoint", "Use custom endpoints");
             if (serProp.boolValue)
             {
                 serProp = PropertyField("customEndpoint", "Endpoint");
+                serProp = PropertyField("customStreamingEndpoint", "Streaming endpoint");
             }
             else
             {
@@ -36,6 +42,9 @@ namespace SolFrame.Editor
                 serProp = PropertyField("triggerCount", "Trigger count", "Number of requests that trigger the batch execution");
             }
 
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
+            serProp = PropertyField("enableLogs", "Enable logs");
             serializedObject.ApplyModifiedProperties();
         }
 

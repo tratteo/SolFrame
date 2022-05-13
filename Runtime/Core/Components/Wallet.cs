@@ -2,13 +2,11 @@ using SolFrame.Cryptography;
 using SolFrame.LocalStore;
 using SolFrame.Statics;
 using SolFrame.Utils;
+using SolmangoNET;
 using Solnet.Extensions;
-using Solnet.Rpc.Core.Sockets;
-using Solnet.Rpc.Messages;
 using Solnet.Rpc.Types;
 using Solnet.Wallet;
 using System;
-using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -16,67 +14,62 @@ using UnityEngine;
 namespace SolFrame
 {
     /// <summary>
-    ///   Base Solana wallet component
+    ///   Base Solana wallet component.
     /// </summary>
     public class Wallet : MonoBehaviour
     {
-        private readonly List<SubscriptionState> subscriptions = new List<SubscriptionState>();
-        [SerializeField] private float refreshTime = 5F;
+        [SerializeField] private bool autoRefreshTokenWallet = true;
+        [SerializeField] private float refreshTime = 30F;
         [Header("Debug")]
         [SerializeField] private bool enableLogs = true;
 
+        /// <summary>
+        ///   Is the <see cref="Account"/> loaded
+        /// </summary>
         public bool IsLoaded { get; private set; }
 
         public Account Account { get; private set; }
 
-        public bool IsSubscribed => subscriptions.Count > 0;
-
         public TokenWallet TokenWallet { get; private set; }
 
+        /// <summary>
+        ///   Is the <see cref="TokenWallet"/> loaded
+        /// </summary>
         public bool IsTokenWalletLoaded { get; private set; }
 
-        #region MainThreadSync
-
-        private readonly Queue<Action> syncJobs = new Queue<Action>();
-
         /// <summary>
-        ///   Enqueue an <see cref="Action"/> to be executed synchronously on the main thread
-        /// </summary>
-        /// <param name="action"> </param>
-        private void OnMainThread(Action action) => syncJobs.Enqueue(action);
-
-        #endregion MainThreadSync
-
-        /// <summary>
-        ///   Called when the <see cref="AccountData"/> configuration is loaded
+        ///   Called when the <see cref="AccountData"/> configuration is loaded.
+        ///   <para> <i> Runs on the main thread </i> </para>
         /// </summary>
         public event Action Loaded = delegate { };
 
         /// <summary>
         ///   Called when the <see cref="AccountData"/> configuration is unloaded
+        ///   <para> <i> Runs on the main thread </i> </para>
         /// </summary>
         public event Action Unloaded = delegate { };
 
         /// <summary>
         ///   Called when the <see cref="Solnet.Extensions.TokenWallet"/> is loaded. The <see cref="Solnet.Extensions.TokenWallet"/> is
         ///   loaded right after the <see cref="Loaded"/> event is called but process is async.
+        ///   <para> <i> Runs on the main thread </i> </para>
         /// </summary>
         public event Action TokenWalletLoaded = delegate { };
 
         /// <summary>
-        ///   Called when the <see cref="Solnet.Extensions.TokenWallet"/> is refreshed
+        ///   Called when the <see cref="Solnet.Extensions.TokenWallet"/> is refreshed.
+        ///   <para> <i> Runs on the main thread </i> </para>
         /// </summary>
         public event Action TokenWalletRefreshed = delegate { };
 
-        private void Update()
+        /// <summary>
+        ///   Refresh the <see cref="Solnet.Extensions.TokenWallet"/>
+        /// </summary>
+        /// <returns> </returns>
+        public async Task RefreshTokenWalletAsync()
         {
-            if (syncJobs.Count > 0)
-            {
-                lock (syncJobs)
-                {
-                    syncJobs.Dequeue().Invoke();
-                }
-            }
+            await TokenWallet.RefreshAsync();
+            MainThread.InUpdate(() => TokenWalletRefreshed?.Invoke());
         }
 
         private void Start()
@@ -107,7 +100,94 @@ namespace SolFrame
             return true;
         }
 
+        #region Tokens Management
+
+        /// <summary>
+        ///   <para> Send an SPL token. </para>
+        ///   <para> Sending transaction at a high rate can cause: </para>
+        ///   <list>
+        ///     <item>
+        ///       <description> - In case of bounded rate endpoint, rejection </description>
+        ///     </item>
+        ///     <item>
+        ///       <description>
+        ///         - In case the <see cref="Solnet.Rpc.Models.LatestBlockHash"/> is the same of a previous transaction, silent request dropping
+        ///       </description>
+        ///     </item>
+        ///   </list>
+        /// </summary>
+        /// <param name="destination"> PublicKey of the receiver </param>
+        /// <param name="tokenMint"> The token mint </param>
+        /// <param name="amount"> Amount with decimals </param>
+        /// <param name="resultCallback">
+        ///   Callback that is called with True only if the transaction is confirmed by validators, with False in any other case
+        /// </param>
+        /// <returns> </returns>
+        public async Task SendToken(string destination, string tokenMint, double amount = 1D, Action<bool> resultCallback = null)
+        {
+            // Send trasaction
+            var oneOf = await Solmango.SendSplToken(SolanaEndpointManager.Instance.RpcClient, Account, destination, tokenMint, amount);
+
+            // Catch any exception from Solmango
+            if (oneOf.TryPickT1(out var ex, out var tsx))
+            {
+                this.LogObj($"Exception in sending token: {ex}", ref enableLogs, LogType.Error);
+                MainThread.InUpdate(() => resultCallback?.Invoke(false));
+            }
+            else
+            {
+                // The transaction returned is valid but not confirmed, therefore subscribe for its confirmation
+                var state = SolanaEndpointManager.Instance.StreamingRpcClient.SubscribeSignature(tsx, (state, result) =>
+                {
+                    if (result.Value.Error is null)
+                    {
+                        this.LogObj($"{tokenMint} [{amount}] -> {destination}", ref enableLogs);
+                        MainThread.InUpdate(() => resultCallback?.Invoke(true));
+                    }
+                    else
+                    {
+                        this.LogObj($"Exception in confirming signature: {result.Value.Error.Type}", ref enableLogs, LogType.Exception);
+                        MainThread.InUpdate(() => resultCallback?.Invoke(false));
+                    }
+                    // Cleanup subscription
+                    _ = SolanaEndpointManager.Instance.StreamingRpcClient.UnsubscribeAsync(state);
+                }, Commitment.Confirmed);
+            }
+        }
+
+        #endregion Tokens Management
+
         #region Loading
+
+        /// <summary>
+        ///   Create a localstore of a new <see cref="AccountData"/> for the wallet in the <see cref="Application.persistentDataPath"/>. If
+        ///   already existing, overwrite it
+        /// </summary>
+        /// <param name="privateKey"> </param>
+        /// <param name="password"> </param>
+        /// <returns> <c> True </c> upon success </returns>
+        public bool Store(string privateKey, string password)
+        {
+            if (password is null || password == string.Empty) return false;
+            if (privateKey is null || privateKey == string.Empty) return false;
+
+            var bytes = Encoding.Unicode.GetBytes(privateKey);
+
+            // Check validity of wallet before encrypting
+            if (!TryGetAccountFromPrivateKey(bytes, out var acc))
+            {
+                this.LogObj("Entered an invalid PrivateKey", ref enableLogs, LogType.Warning);
+                return false;
+            }
+            Account = acc;
+
+            var digest = Crypto.AESEncryptAndSign(bytes, Crypto.SHA256Of(password));
+            SaveManager.SaveJson(new AccountData(digest.BytesToX2String()), AccountData.Location);
+
+            IsLoaded = true;
+            OnLoad();
+            return true;
+        }
 
         /// <summary>
         ///   Load the existing <see cref="AccountData"/>
@@ -158,49 +238,18 @@ namespace SolFrame
         }
 
         /// <summary>
-        ///   Create a localstore of a new <see cref="AccountData"/> for the wallet in the <see cref="Application.persistentDataPath"/>. If
-        ///   already existing, overwrite it
-        /// </summary>
-        /// <param name="privateKey"> </param>
-        /// <param name="password"> </param>
-        /// <returns> <c> True </c> upon success </returns>
-        public bool Store(string privateKey, string password)
-        {
-            if (password is null || password == string.Empty) return false;
-            if (privateKey is null || privateKey == string.Empty) return false;
-
-            var bytes = Encoding.Unicode.GetBytes(privateKey);
-
-            // Check validity of wallet before encrypting
-            if (!TryGetAccountFromPrivateKey(bytes, out var acc))
-            {
-                this.LogObj("Entered an invalid PrivateKey", ref enableLogs, LogType.Warning);
-                return false;
-            }
-            Account = acc;
-
-            var digest = Crypto.AESEncryptAndSign(bytes, Crypto.SHA256Of(password));
-            SaveManager.SaveJson(new AccountData(digest.BytesToX2String()), AccountData.Location);
-
-            IsLoaded = true;
-            OnLoad();
-            return true;
-        }
-
-        /// <summary>
         ///   Load the <see cref="Solnet.Extensions.TokenWallet"/>
         /// </summary>
         private async Task LoadTokenWalletAsync()
         {
             if (!IsLoaded) return;
             TokenWallet = await TokenWallet.LoadAsync(SolanaEndpointManager.Instance.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey);
-            OnMainThread(() => TokenWalletLoaded?.Invoke());
+            MainThread.InUpdate(() => TokenWalletLoaded?.Invoke());
             IsTokenWalletLoaded = true;
         }
 
         private void OnLoad()
         {
-            _ = InitializeCache();
             _ = LoadTokenWalletAsync();
             Loaded?.Invoke();
             this.LogObj("Successfully loaded the AccoundData", ref enableLogs);
@@ -208,48 +257,13 @@ namespace SolFrame
 
         #endregion Loading
 
-        #region Cache
-
-        public Cached<ulong> SolBalance { get; private set; } = new Cached<ulong>();
-
-        /// <summary>
-        ///   Clear all the <see cref="Cached{T}"/>
-        /// </summary>
-        public void ClearCache()
-        {
-            SolBalance.Clear();
-            this.LogObj("Cache cleared", ref enableLogs);
-        }
-
-        /// <summary>
-        ///   Initialize all the <see cref="Cached{T}"/> in batch using the <see cref="Solnet.Rpc.SolanaRpcBatchWithCallbacks"/>
-        /// </summary>
-        private async Task InitializeCache()
-        {
-            SolanaEndpointManager.Instance.BatchRequest(batcher =>
-                batcher.GetBalance(Account.PublicKey, Commitment.Finalized, (res, ex) =>
-                    HandleCached(SolBalance, res, ex)));
-            await SolanaEndpointManager.Instance.FlushBatchAsync();
-
-            this.LogObj("Cache initialized", ref enableLogs);
-        }
-
-        private void HandleCached<T>(Cached<T> cached, ResponseValue<T> response, Exception exception)
-        {
-            if (exception is null) cached.Update(response.Value);
-            else Debug.LogException(exception);
-        }
-
-        #endregion Cache
-
         private async Task TokenWalletRefreshDaemon()
         {
             while (true)
             {
-                if (TokenWallet is not null)
+                if (TokenWallet is not null && autoRefreshTokenWallet)
                 {
-                    await TokenWallet.RefreshAsync();
-                    OnMainThread(() => TokenWalletRefreshed?.Invoke());
+                    await RefreshTokenWalletAsync();
                 }
                 await Task.Delay((int)(refreshTime * 1E3));
             }
