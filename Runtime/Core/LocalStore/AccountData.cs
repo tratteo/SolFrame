@@ -6,7 +6,7 @@ namespace SolFrame.LocalStore
     [System.Serializable]
     public class AccountData
     {
-        public static readonly string Location = $"{Application.persistentDataPath}{Path.AltDirectorySeparatorChar}account_data.json";
+        public static readonly string Location = $"{Application.persistentDataPath}{Path.AltDirectorySeparatorChar}wallet_account_data.json";
 
         [SerializeField] private string digestAES256;
 

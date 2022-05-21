@@ -91,6 +91,7 @@ namespace SolFrame
         {
             account = null;
             if (plainPrivateKey is null) return false;
+            if (plainPrivateKey.Length != 64) return false;
             var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
             var pubKey = new PublicKey(privKey.KeyBytes[32..]);
 
