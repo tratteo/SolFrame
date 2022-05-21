@@ -72,6 +72,8 @@ namespace SolFrame
             MainThread.InUpdate(() => TokenWalletRefreshed?.Invoke());
         }
 
+        public bool HasLocalStore() => SaveManager.TryLoadJson<AccountData>(AccountData.Location, out _);
+
         private void Start()
         {
             if (SolanaEndpointManager.Instance is null)
