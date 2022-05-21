@@ -91,14 +91,22 @@ namespace SolFrame
         {
             account = null;
             if (plainPrivateKey is null) return false;
-            if (plainPrivateKey.Length != 64) return false;
-            var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
-            var pubKey = new PublicKey(privKey.KeyBytes[32..]);
+            try
+            {
+                var privKey = new PrivateKey(Encoding.Unicode.GetString(plainPrivateKey));
 
-            // Checks if the account is an existing one
-            if (!pubKey.IsValid()) return false;
-            account = new Account(privKey.Key, pubKey.Key);
-            return true;
+                if (privKey.KeyBytes.Length != 64) return false;
+                var pubKey = new PublicKey(privKey.KeyBytes[32..]);
+
+                // Checks if the account is an existing one
+                if (!pubKey.IsValid()) return false;
+                account = new Account(privKey.Key, pubKey.Key);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         #region Tokens Management
