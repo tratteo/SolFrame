@@ -10,7 +10,6 @@ namespace SolFrame
     // Using custom editor
     public class SolanaEndpointManager : MonoBehaviour
     {
-        [SerializeField] private bool dontDestroyOnLoad = false;
         [SerializeField] private Cluster cluster = Cluster.DevNet;
         [SerializeField] private bool useCustomEndpoint = false;
         [SerializeField] private string customEndpoint = null;
@@ -20,8 +19,6 @@ namespace SolFrame
         [SerializeField] private int triggerCount = 1;
         [SerializeField] private bool enableLogs = true;
         private SolanaRpcBatchWithCallbacks rpcBatcher;
-
-        public static SolanaEndpointManager Instance { get; private set; } = null;
 
         public IStreamingRpcClient StreamingRpcClient { get; private set; }
 
@@ -62,15 +59,6 @@ namespace SolFrame
 
         private void Awake()
         {
-            if (Instance == null)
-            {
-                Instance = this;
-                if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
             _ = Initialize();
         }
 

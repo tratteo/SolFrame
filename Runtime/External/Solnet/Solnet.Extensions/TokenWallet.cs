@@ -7,7 +7,6 @@ using Solnet.Rpc.Core.Http;
 using Solnet.Rpc.Models;
 using Solnet.Rpc.Types;
 using Solnet.Wallet;
-using Solnet.Wallet.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -45,7 +44,7 @@ namespace Solnet.Extensions
         /// <summary>
         ///   Native SOL balance as decimal
         /// </summary>
-        public decimal Sol => SolHelper.ConvertToSol(this.Lamports);
+        public decimal Sol => SolHelper.ConvertToSol(Lamports);
 
         /// <summary>
         ///   RPC client instance
@@ -239,13 +238,17 @@ namespace Solnet.Extensions
             {
                 if (success == 2)
                 {
-                    var tokenWallet = new TokenWallet(mintResolver, new PublicKey(publicKey));
-                    tokenWallet.Lamports = lamports;
-                    tokenWallet._tokenAccounts = tokenAccounts;
+                    var tokenWallet = new TokenWallet(mintResolver, new PublicKey(publicKey))
+                    {
+                        Lamports = lamports,
+                        _tokenAccounts = tokenAccounts
+                    };
                     taskSource.SetResult(tokenWallet);
                 }
                 else if (fail + success == 2)
+                {
                     taskSource.SetException(new ApplicationException("Failed to load TokenWallet via Batch"));
+                }
             };
 
             // get sol balance
@@ -260,7 +263,9 @@ namespace Solnet.Extensions
                         success += 1;
                     }
                     else
+                    {
                         fail += 1;
+                    }
                 }
 
                 // finished?
@@ -279,7 +284,9 @@ namespace Solnet.Extensions
                         success += 1;
                     }
                     else
+                    {
                         fail += 1;
+                    }
                 }
 
                 // finished?
@@ -332,7 +339,7 @@ namespace Solnet.Extensions
         public TokenWalletBalance[] Balances()
         {
             var mintBalances = new Dictionary<string, TokenWalletBalance>();
-            foreach (var token in this._tokenAccounts)
+            foreach (var token in _tokenAccounts)
             {
                 var mint = token.Account.Data.Parsed.Info.Mint;
                 var lamportsRaw = token.Account.Lamports;
@@ -351,7 +358,9 @@ namespace Solnet.Extensions
                     mintBalances[mint] = new TokenWalletBalance(tokenDef, balancDecimal, balancRaw, lamportsRaw, 1);
                 }
                 else
+                {
                     mintBalances[mint] = mintBalances[mint].AddAccount(balancDecimal, balancRaw, lamportsRaw, 1);
+                }
             }
 
             // transfer to output array
@@ -369,7 +378,7 @@ namespace Solnet.Extensions
         public TokenWalletFilterList TokenAccounts()
         {
             var list = new List<TokenWalletAccount>();
-            foreach (var account in this._tokenAccounts)
+            foreach (var account in _tokenAccounts)
             {
                 var mint = account.Account.Data.Parsed.Info.Mint;
                 var ata = GetAssociatedTokenAddressForMint(mint);
@@ -484,10 +493,10 @@ namespace Solnet.Extensions
             if (!feePayer.IsOnCurve()) throw new ArgumentException($"feePayer PublicKey {feePayer.Key} is invalid wallet address.");
 
             // make sure source account originated from this wallet
-            if (source.Owner != this.PublicKey) throw new ApplicationException("Source account does not belong to this wallet.");
+            if (source.Owner != PublicKey) throw new ApplicationException("Source account does not belong to this wallet.");
 
             // load destination wallet
-            TokenWallet destWallet = await TokenWallet.LoadAsync(RpcClient, MintResolver, destination);
+            var destWallet = await TokenWallet.LoadAsync(RpcClient, MintResolver, destination);
 
             // get recent block hash
             var blockHash = await RpcClient.GetRecentBlockHashAsync();
@@ -562,7 +571,7 @@ namespace Solnet.Extensions
         public bool IsSubAccount(string pubkey)
         {
             if (pubkey == null) throw new ArgumentNullException(nameof(pubkey));
-            return this._tokenAccounts.Any(x => x.PublicKey == pubkey);
+            return _tokenAccounts.Any(x => x.PublicKey == pubkey);
         }
 
         /// <summary>
@@ -573,7 +582,7 @@ namespace Solnet.Extensions
         public bool IsSubAccount(PublicKey pubkey)
         {
             if (pubkey == null) throw new ArgumentNullException(nameof(pubkey));
-            return this._tokenAccounts.Any(x => x.PublicKey == pubkey.Key);
+            return _tokenAccounts.Any(x => x.PublicKey == pubkey.Key);
         }
 
         /// <summary>
@@ -585,7 +594,9 @@ namespace Solnet.Extensions
         {
             if (mint == null) throw new ArgumentNullException(nameof(mint));
             if (_ataCache.ContainsKey(mint))
+            {
                 return _ataCache[mint];
+            }
             else
             {
                 // derive deterministic associate token account see https://spl.solana.com/associated-token-account for more info

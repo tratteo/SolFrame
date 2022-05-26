@@ -16,7 +16,6 @@ namespace SolFrame.Editor
             EditorGUILayout.ObjectField("Script", target, typeof(SerializedProperty), true);
 
             GUI.enabled = true;
-            EditorGUILayout.LabelField("Singleton", EditorStyles.boldLabel);
             serProp = PropertyField("dontDestroyOnLoad", "Dont destroy on load");
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Endpoint", EditorStyles.boldLabel);

@@ -18,6 +18,7 @@ namespace SolFrame
     /// </summary>
     public class Wallet : MonoBehaviour
     {
+        [SerializeField] private SolanaEndpointManager endpointManager;
         [SerializeField] private bool autoRefreshTokenWallet = true;
         [SerializeField] private float refreshTime = 30F;
         [Header("Debug")]
@@ -79,7 +80,7 @@ namespace SolFrame
 
         private void Start()
         {
-            if (SolanaEndpointManager.Instance is null)
+            if (!endpointManager)
             {
                 this.LogObj("Unable to locate the SolanaEndpointManager instance", ref enableLogs, LogType.Warning);
             }
@@ -140,7 +141,7 @@ namespace SolFrame
         public async Task SendToken(string destination, string tokenMint, double amount = 1D, Action<bool> resultCallback = null)
         {
             // Send trasaction
-            var oneOf = await Solmango.SendSplToken(SolanaEndpointManager.Instance.RpcClient, Account, destination, tokenMint, amount);
+            var oneOf = await Solmango.SendSplToken(endpointManager.RpcClient, Account, destination, tokenMint, amount);
 
             // Catch any exception from Solmango
             if (oneOf.TryPickT1(out var ex, out var tsx))
@@ -151,7 +152,7 @@ namespace SolFrame
             else
             {
                 // The transaction returned is valid but not confirmed, therefore subscribe for its confirmation
-                var state = SolanaEndpointManager.Instance.StreamingRpcClient.SubscribeSignature(tsx, (state, result) =>
+                var state = endpointManager.StreamingRpcClient.SubscribeSignature(tsx, (state, result) =>
                 {
                     if (result.Value.Error is null)
                     {
@@ -164,7 +165,7 @@ namespace SolFrame
                         MainThread.InUpdate(() => resultCallback?.Invoke(false));
                     }
                     // Cleanup subscription
-                    _ = SolanaEndpointManager.Instance.StreamingRpcClient.UnsubscribeAsync(state);
+                    _ = endpointManager.StreamingRpcClient.UnsubscribeAsync(state);
                 }, Commitment.Confirmed);
             }
         }
@@ -257,7 +258,7 @@ namespace SolFrame
         private async Task LoadTokenWalletAsync()
         {
             if (!IsLoaded) return;
-            TokenWallet = await TokenWallet.LoadAsync(SolanaEndpointManager.Instance.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey);
+            TokenWallet = await TokenWallet.LoadAsync(endpointManager.RpcClient, await TokenMintResolver.LoadAsync(), Account.PublicKey);
             MainThread.InUpdate(() => TokenWalletLoaded?.Invoke());
             IsTokenWalletLoaded = true;
         }
@@ -266,7 +267,7 @@ namespace SolFrame
         {
             _ = LoadTokenWalletAsync();
             Loaded?.Invoke();
-            this.LogObj("Successfully loaded the AccoundData", ref enableLogs);
+            this.LogObj("Successfully loaded the AccountData", ref enableLogs);
         }
 
         #endregion Loading
