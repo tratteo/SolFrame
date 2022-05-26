@@ -72,6 +72,9 @@ namespace SolFrame
             MainThread.InUpdate(() => TokenWalletRefreshed?.Invoke());
         }
 
+        /// <summary>
+        /// </summary>
+        /// <returns> Whether a localstore of the wallet is present on the current device </returns>
         public bool HasLocalStore() => SaveManager.TryLoadJson<AccountData>(AccountData.Location, out _);
 
         private void Start()
