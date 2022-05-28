@@ -16,8 +16,6 @@ namespace SolFrame.Editor
             EditorGUILayout.ObjectField("Script", target, typeof(SerializedProperty), true);
 
             GUI.enabled = true;
-            serProp = PropertyField("dontDestroyOnLoad", "Dont destroy on load");
-            EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Endpoint", EditorStyles.boldLabel);
             serProp = PropertyField("useCustomEndpoint", "Use custom endpoints");
             if (serProp.boolValue)
