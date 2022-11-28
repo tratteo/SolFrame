@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Messages
+namespace Solnet.Rpc.Messages
 {
     /// <summary>
     /// Base JpnRpc message.

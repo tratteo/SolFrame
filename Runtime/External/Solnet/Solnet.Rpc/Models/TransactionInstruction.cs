@@ -5,75 +5,84 @@ using System.Collections.Generic;
 namespace Solnet.Rpc.Models
 {
     /// <summary>
-    ///   Represents a transaction instruction before being compiled into the transaction's message.
+    /// Represents a transaction instruction before being compiled into the transaction's message.
     /// </summary>
     public class TransactionInstruction
     {
         /// <summary>
-        ///   The program ID associated with the instruction.
+        /// The program ID associated with the instruction.
         /// </summary>
         public byte[] ProgramId { get; set; }
 
         /// <summary>
-        ///   The keys associated with the instruction.
+        /// The keys associated with the instruction.
         /// </summary>
         public IList<AccountMeta> Keys { get; set; }
 
         /// <summary>
-        ///   The instruction-specific data.
+        /// The instruction-specific data.
         /// </summary>
         public byte[] Data { get; set; }
     }
 
     /// <summary>
-    ///   A compiled instruction within the transaction's message.
+    /// A compiled instruction within the transaction's message.
     /// </summary>
     public class CompiledInstruction
     {
         #region Layout
 
         /// <summary>
-        ///   Represents the layout of the <see cref="CompiledInstruction"/> encoded values.
+        /// Represents the layout of the <see cref="CompiledInstruction"/> encoded values.
         /// </summary>
         internal static class Layout
         {
             /// <summary>
-            ///   The offset at which the program's id index value begins.
+            /// The offset at which the program's id index value begins.
             /// </summary>
             internal const int ProgramIdIndexOffset = 0;
         }
 
-        #endregion Layout
+        #endregion
 
         /// <summary>
-        ///   The index of the program's key in the transaction's account keys.
+        /// The index of the program's key in the transaction's account keys.
         /// </summary>
         public byte ProgramIdIndex { get; set; }
 
         /// <summary>
-        ///   The <see cref="ShortVectorEncoding"/> encoded length representing the number of key indices.
+        /// The <see cref="ShortVectorEncoding"/> encoded length representing the number of key indices.
         /// </summary>
         public byte[] KeyIndicesCount { get; set; }
 
         /// <summary>
-        ///   The indices of the account keys for the instruction as they appear in the transaction.
+        /// The indices of the account keys for the instruction as they appear in the transaction.
         /// </summary>
         public byte[] KeyIndices { get; set; }
 
         /// <summary>
-        ///   The <see cref="ShortVectorEncoding"/> encoded length representing the number of key indices.
+        /// The <see cref="ShortVectorEncoding"/> encoded length representing the number of key indices.
         /// </summary>
         public byte[] DataLength { get; set; }
 
         /// <summary>
-        ///   The instruction data.
+        /// The instruction data.
         /// </summary>
         public byte[] Data { get; set; }
 
         /// <summary>
-        ///   Attempts to deserialize a compiled instruction from the given data.
+        /// Get the length of the compiled instruction.
         /// </summary>
-        /// <param name="data"> The data to deserialize. </param>
+        /// <returns>The length.</returns>
+        internal int Length()
+        {
+            return 1 + KeyIndicesCount.Length + KeyIndices.Length + DataLength.Length + Data.Length;
+        }
+
+        /// <summary>
+        /// Attempts to deserialize a compiled instruction from the given data.
+        /// </summary>
+        /// <param name="data">The data to deserialize.</param>
         public static (CompiledInstruction Instruction, int Length) Deserialize(ReadOnlySpan<byte> data)
         {
             int instructionLength = 0;
@@ -117,15 +126,6 @@ namespace Solnet.Rpc.Models
                 DataLength = encodedDataLength[..dataLengthEncodedLength].ToArray(),
                 Data = instructionEncodedData
             }, Length: instructionLength);
-        }
-
-        /// <summary>
-        ///   Get the length of the compiled instruction.
-        /// </summary>
-        /// <returns> The length. </returns>
-        internal int Length()
-        {
-            return 1 + KeyIndicesCount.Length + KeyIndices.Length + DataLength.Length + Data.Length;
         }
     }
 }

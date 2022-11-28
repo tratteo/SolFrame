@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Types
+namespace Solnet.Rpc.Types
 {
     /// <summary>
     /// Enum with the possible vote selection parameter for the log subscription method.

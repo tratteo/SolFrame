@@ -1,4 +1,4 @@
-﻿using Solnet.Rpc.Core.Http;
+using Solnet.Rpc.Core.Http;
 using Solnet.Rpc.Messages;
 using Solnet.Rpc.Models;
 using Solnet.Rpc.Types;

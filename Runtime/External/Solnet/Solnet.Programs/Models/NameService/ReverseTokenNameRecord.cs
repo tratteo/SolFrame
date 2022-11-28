@@ -1,4 +1,4 @@
-﻿using Solnet.Programs.Utilities;
+using Solnet.Programs.Utilities;
 using Solnet.Wallet;
 using System;
 using System.Diagnostics;

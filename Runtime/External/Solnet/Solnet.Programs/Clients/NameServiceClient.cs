@@ -1,4 +1,4 @@
-﻿using Solnet.Programs.Abstract;
+using Solnet.Programs.Abstract;
 using Solnet.Programs.Models;
 using Solnet.Programs.Models.NameService;
 using Solnet.Rpc;

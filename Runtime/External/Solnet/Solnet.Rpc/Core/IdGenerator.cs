@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Core
+namespace Solnet.Rpc.Core
 {
     /// <summary>
     /// Id generator.

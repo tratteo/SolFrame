@@ -4,53 +4,47 @@ using System.Linq;
 namespace Solnet.Rpc.Models
 {
     /// <summary>
-    ///   A wrapper around a list of <see cref="AccountMeta"/> s that takes care of deduplication and ordering according to the wire format specification.
+    /// A wrapper around a list of <see cref="AccountMeta"/>s that takes care of deduplication and ordering according to 
+    /// the wire format specification.
     /// </summary>
     internal class AccountKeysList
     {
         /// <summary>
-        ///   The account metas list.
+        /// The account metas list.
         /// </summary>
         private readonly List<AccountMeta> _accounts;
 
         /// <summary>
-        ///   Get the accounts as a list.
+        /// Get the accounts as a list.
         /// </summary>
-        internal IList<AccountMeta> AccountList
+        internal List<AccountMeta> AccountList
         {
             get
             {
-                List<AccountMeta> res = new(_accounts.Count);
-                for (var i = 0; i < _accounts.Count; i++)
-                {
-                    if (_accounts[i].IsSigner)
-                    {
-                        res.Add(_accounts[i]);
-                    }
-                }
+                List<AccountMeta> res = _accounts.Select(acc => acc).ToList();
 
-                for (var i = 0; i < _accounts.Count; i++)
+                res.Sort((x, y) =>
                 {
-                    if (!_accounts[i].IsSigner && _accounts[i].IsWritable)
+                    if (x.IsSigner != y.IsSigner)
                     {
-                        res.Add(_accounts[i]);
+                        // Signers always come before non-signers
+                        return x.IsSigner ? -1 : 1;
                     }
-                }
-
-                for (var i = 0; i < _accounts.Count; i++)
-                {
-                    if (!_accounts[i].IsSigner && !_accounts[i].IsWritable)
+                    if (x.IsWritable != y.IsWritable)
                     {
-                        res.Add(_accounts[i]);
+                        // Writable accounts always come before read-only accounts
+                        return x.IsWritable ? -1 : 1;
                     }
-                }
+                    // Otherwise, sort by pubkey, stringwise.
+                    return x.PublicKey.CompareTo(y.PublicKey);
+                });
 
                 return res;
             }
         }
 
         /// <summary>
-        ///   Initialize the account keys list for use within transaction building.
+        /// Initialize the account keys list for use within transaction building.
         /// </summary>
         internal AccountKeysList()
         {
@@ -58,12 +52,12 @@ namespace Solnet.Rpc.Models
         }
 
         /// <summary>
-        ///   Add an account meta to the list of accounts.
+        /// Add an account meta to the list of accounts.
         /// </summary>
-        /// <param name="accountMeta"> The account meta to add. </param>
+        /// <param name="accountMeta">The account meta to add.</param>
         internal void Add(AccountMeta accountMeta)
         {
-            var accMeta = _accounts.FirstOrDefault(x => x.PublicKey == accountMeta.PublicKey);
+            AccountMeta accMeta = _accounts.FirstOrDefault(x => x.PublicKey == accountMeta.PublicKey);
 
             if (accMeta == null)
             {
@@ -74,19 +68,20 @@ namespace Solnet.Rpc.Models
                 accMeta.IsSigner = true;
                 accMeta.IsWritable = accMeta.IsWritable || accountMeta.IsWritable;
             }
-            else if (!accMeta.IsWritable && accountMeta.IsWritable)
+            else if(!accMeta.IsWritable && accountMeta.IsWritable)
             {
                 accMeta.IsWritable = true;
             }
+
         }
 
         /// <summary>
-        ///   Add a list of account metas to the list of accounts.
+        /// Add a list of account metas to the list of accounts.
         /// </summary>
-        /// <param name="accountMetas"> The account metas to add. </param>
+        /// <param name="accountMetas">The account metas to add.</param>
         internal void Add(IEnumerable<AccountMeta> accountMetas)
         {
-            foreach (var accountMeta in accountMetas)
+            foreach (AccountMeta accountMeta in accountMetas)
             {
                 Add(accountMeta);
             }

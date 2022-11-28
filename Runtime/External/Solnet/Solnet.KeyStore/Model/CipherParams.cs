@@ -4,9 +4,6 @@ namespace Solnet.KeyStore.Model
 {
     public class CipherParams
     {
-        [JsonPropertyName("iv")]
-        public string Iv { get; set; }
-
         public CipherParams()
         {
         }
@@ -15,5 +12,9 @@ namespace Solnet.KeyStore.Model
         {
             Iv = iv.ToHex();
         }
+
+        [JsonPropertyName("iv")]
+        // ReSharper disable once MemberCanBePrivate.Global
+        public string Iv { get; set; }
     }
 }

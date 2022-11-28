@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Solnet.Rpc.Core.Sockets
 {

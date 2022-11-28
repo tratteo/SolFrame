@@ -1,4 +1,4 @@
-﻿using Solnet.Wallet;
+using Solnet.Wallet;
 using System;
 using System.Collections.Generic;
 using System.Linq;

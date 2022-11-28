@@ -29,7 +29,7 @@ namespace SolFrame.Editor
             }
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Streaming", EditorStyles.boldLabel);
-            serProp = PropertyField("connectOnInit", "Connect on init", "Connect to the WebSocket on initialization");
+            serProp = PropertyField("connectOnInit", "Connect on private set", "Connect to the WebSocket on initialization");
 
             EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Batch", EditorStyles.boldLabel);

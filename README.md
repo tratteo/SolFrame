@@ -1,6 +1,6 @@
 # SolFrame
 
-![version](https://img.shields.io/badge/Solnet-6.0.11-purple)
+![version](https://img.shields.io/badge/Solnet-6.1.0-purple)
 
 ## The next-gen Unity / Solana integration
 

@@ -6,6 +6,7 @@ namespace Solnet.KeyStore.Model
     {
         // ReSharper disable once StringLiteralTypo
         [JsonPropertyName("dklen")]
+        // ReSharper disable once IdentifierTypo
         public int Dklen { get; set; }
 
         [JsonPropertyName("salt")]

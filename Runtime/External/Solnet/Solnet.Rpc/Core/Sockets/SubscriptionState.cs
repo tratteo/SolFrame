@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,7 +55,7 @@ namespace Solnet.Rpc.Core.Sockets
         {
             _rpcClient = rpcClient;
             Channel = chan;
-            AdditionalParameters = additionalParameters.ToList();
+            AdditionalParameters = additionalParameters?.ToList();
         }
 
         /// <summary>

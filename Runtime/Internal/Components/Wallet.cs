@@ -214,7 +214,7 @@ namespace SolFrame
             if (IsLoaded) return true;
             if (password is null || password == string.Empty) return false;
 
-            // Load the store data on demand (lazy init), little less performant (orders of 10E-9s) but much more solid.
+            // Load the store data on demand (lazy private set), little less performant (orders of 10E-9s) but much more solid.
             if (!SaveManager.TryLoadJson<AccountData>(AccountData.Location, out var localStoreData))
             {
                 this.LogObj("Unable to load the account data", ref enableLogs, LogType.Warning);

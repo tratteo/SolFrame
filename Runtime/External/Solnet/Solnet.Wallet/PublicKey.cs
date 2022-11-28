@@ -1,4 +1,5 @@
 using Chaos.NaCl;
+using Solnet.Programs.Utilities;
 using Solnet.Wallet.Utilities;
 using System;
 using System.Collections.Generic;
@@ -77,7 +78,9 @@ namespace Solnet.Wallet
         /// <param name="key"> The public key as base58 encoded string. </param>
         public PublicKey(string key)
         {
-            Key = key ?? throw new ArgumentNullException(nameof(key));
+            if (key == null) throw new ArgumentNullException(nameof(key));
+            if (!FastCheck(key)) throw new ArgumentException("publickey contains a non-base58 character");
+            Key = key;
         }
 
         /// <summary>
@@ -158,6 +161,7 @@ namespace Solnet.Wallet
             {
                 try
                 {
+                    if (!FastCheck(key)) return false;
                     return IsValid(Encoders.Base58.DecodeData(key), validateCurve);
                 }
                 catch (Exception)
@@ -216,7 +220,7 @@ namespace Solnet.Wallet
         /// <inheritdoc cref="Equals(object)"/>
         public override bool Equals(object obj)
         {
-            if (obj is PublicKey pk) return pk.Key == Key;
+            if (obj is PublicKey pk) return pk.Key == this.Key;
 
             return false;
         }
@@ -245,6 +249,17 @@ namespace Solnet.Wallet
             return KeyBytes != null && KeyBytes.Length == PublicKeyLength;
         }
 
+        /// <summary>
+        ///   Fast validation to determine whether this is a valid public key input pattern. Checks are valid characters for base58 and no
+        ///   whitespace. Avoids performing the conversion to a buffer and checking it is actually 32 bytes as a permformance trade-off.
+        /// </summary>
+        /// <param name="value"> public key value to check </param>
+        /// <returns> true means good, false means bad </returns>
+        private static bool FastCheck(string value)
+        {
+            return Base58Encoder.IsValidWithoutWhitespace(value);
+        }
+
         #region KeyDerivation
 
         /// <summary>
@@ -264,7 +279,7 @@ namespace Solnet.Wallet
         {
             MemoryStream buffer = new(PublicKeyLength * seeds.Count + ProgramDerivedAddressBytes.Length + programId.KeyBytes.Length);
 
-            foreach (var seed in seeds)
+            foreach (byte[] seed in seeds)
             {
                 if (seed.Length > PublicKeyLength)
                 {
@@ -276,7 +291,7 @@ namespace Solnet.Wallet
             buffer.Write(programId.KeyBytes);
             buffer.Write(ProgramDerivedAddressBytes);
 
-            var hash = SHA256.Create().ComputeHash(buffer.GetBuffer(), 0, (int)buffer.Length);
+            byte[] hash = SHA256.Create().ComputeHash(new ReadOnlySpan<byte>(buffer.GetBuffer(), 0, (int)buffer.Length).GetBytes(0, (int)buffer.Length));
 
             if (hash.IsOnCurve())
             {
@@ -298,14 +313,14 @@ namespace Solnet.Wallet
         public static bool TryFindProgramAddress(IEnumerable<byte[]> seeds, PublicKey programId, out PublicKey address, out byte bump)
         {
             byte seedBump = 255;
-            var buffer = seeds.ToList();
+            List<byte[]> buffer = seeds.ToList();
             var bumpArray = new byte[1];
             buffer.Add(bumpArray);
 
             while (seedBump != 0)
             {
                 bumpArray[0] = seedBump;
-                var success = TryCreateProgramAddress(buffer, programId, out var derivedAddress);
+                bool success = TryCreateProgramAddress(buffer, programId, out PublicKey derivedAddress);
 
                 if (success)
                 {
@@ -353,7 +368,7 @@ namespace Solnet.Wallet
                 }
             }
 
-            var hash = SHA256.Create().ComputeHash(seeds.ToArray());
+            byte[] hash = SHA256.Create().ComputeHash(seeds.GetBytes(0, seeds.Length));
             publicKeyOut = new PublicKey(hash);
             return true;
         }

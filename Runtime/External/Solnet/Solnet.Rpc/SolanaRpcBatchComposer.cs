@@ -1,10 +1,13 @@
-﻿using Solnet.Rpc.Core.Http;
+using Solnet.Rpc.Core;
+using Solnet.Rpc.Core.Http;
 using Solnet.Rpc.Messages;
+using Solnet.Rpc.Models;
 using Solnet.Rpc.Types;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -73,8 +76,8 @@ namespace Solnet.Rpc
         /// <param name="batchSizeTrigger"> The number of requests that will trigger a batch execution. </param>
         public void AutoExecute(BatchAutoExecuteMode mode, int batchSizeTrigger)
         {
-            _autoMode = mode;
-            _autoBatchSize = batchSizeTrigger;
+            this._autoMode = mode;
+            this._autoBatchSize = batchSizeTrigger;
         }
 
         /// <summary>
@@ -123,7 +126,7 @@ namespace Solnet.Rpc
         /// <param name="client"> The RPC client to execute this batch with </param>
         public async Task<JsonRpcBatchResponse> ExecuteAsync(IRpcClient client)
         {
-            var reqs = CreateJsonRequests();
+            var reqs = this.CreateJsonRequests();
             var response = await client.SendBatchRequestAsync(reqs);
             if (response.WasSuccessful)
                 return ProcessBatchResponse(response);
@@ -166,7 +169,7 @@ namespace Solnet.Rpc
         /// <param name="client"> </param>
         public async Task<JsonRpcBatchResponse> ExecuteWithFatalFailureAsync(IRpcClient client)
         {
-            var reqs = CreateJsonRequests();
+            var reqs = this.CreateJsonRequests();
             var response = await client.SendBatchRequestAsync(reqs);
             if (response.WasSuccessful)
                 return ProcessBatchResponse(response);
@@ -182,9 +185,10 @@ namespace Solnet.Rpc
         /// <returns> </returns>
         public object MapJsonTypeToNativeType(object input, Type nativeType)
         {
-            // serializes + deserializes the JSON into runtime type - suboptimal but expedient
-            if (input is JsonElement elem)
+            if (input is JsonElement)
             {
+                // serializes + deserializes the JSON into runtime type - suboptimal but expedient
+                var elem = (JsonElement)input;
                 var bufferWriter = new ArrayBufferWriter<byte>();
                 var writer = new Utf8JsonWriter(bufferWriter);
                 elem.WriteTo(writer);
@@ -209,7 +213,7 @@ namespace Solnet.Rpc
             if (_reqs.Count != response.Result.Count) throw new ApplicationException($"Batch req/resp size mismatch {_reqs.Count}/{response.Result.Count}");
 
             // transfer expected type info to individual batch response items
-            for (var ix = 0; ix < _reqs.Count; ix++)
+            for (int ix = 0; ix < _reqs.Count; ix++)
             {
                 var req = _reqs[ix];
                 var resp = response.Result[ix];
@@ -218,7 +222,7 @@ namespace Solnet.Rpc
                 resp.ResultType = req.ResultType;
 
                 // catch any type mapping exceptions and feed into callback
-                var callbackInvoked = false;
+                bool callbackInvoked = false;
                 try
                 {
                     // translate generic JSON deserialized content into POCO runtime types
@@ -263,7 +267,7 @@ namespace Solnet.Rpc
             var ex = new BatchRequestException(response);
 
             // transfer expected type info to individual batch response items
-            for (var ix = 0; ix < _reqs.Count; ix++)
+            for (int ix = 0; ix < _reqs.Count; ix++)
             {
                 // no response for each request as whole batch failed
                 var req = _reqs[ix];
@@ -299,10 +303,6 @@ namespace Solnet.Rpc
                     break;
 
                 case BatchAutoExecuteMode.ExecuteWithCallbackFailures:
-                    Execute(_rpcClient);
-                    break;
-
-                case BatchAutoExecuteMode.Manual:
                     Execute(_rpcClient);
                     break;
 
@@ -347,7 +347,7 @@ namespace Solnet.Rpc
             // wrap into common typed callback
             Action<JsonRpcBatchResponseItem, Exception> wrapper = (item, ex) =>
             {
-                var obj = default(T);
+                T obj = default(T);
                 if (item != null) obj = item.ResultAs<T>();
                 callback.Invoke(obj, ex);
             };
@@ -361,7 +361,7 @@ namespace Solnet.Rpc
             // wrap into common typed callback
             Action<JsonRpcBatchResponseItem, Exception> wrapper = (item, ex) =>
             {
-                var obj = item.ResultAs<T>();
+                T obj = item.ResultAs<T>();
                 if (ex != null)
                     taskSource.SetException(ex);
                 else
@@ -392,9 +392,9 @@ namespace Solnet.Rpc
                                     Type resultType,
                                     Action<JsonRpcBatchResponseItem, Exception> callback)
         {
-            Req = req ?? throw new ArgumentNullException(nameof(req));
-            ResultType = resultType ?? throw new ArgumentNullException(nameof(resultType));
-            Callback = callback;
+            this.Req = req ?? throw new ArgumentNullException(nameof(req));
+            this.ResultType = resultType ?? throw new ArgumentNullException(nameof(resultType));
+            this.Callback = callback;
         }
 
         /// <summary>

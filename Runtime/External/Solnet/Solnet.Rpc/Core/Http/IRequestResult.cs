@@ -1,4 +1,4 @@
-﻿using Solnet.Rpc.Models;
+using Solnet.Rpc.Models;
 using System.Collections.Generic;
 using System.Net;
 

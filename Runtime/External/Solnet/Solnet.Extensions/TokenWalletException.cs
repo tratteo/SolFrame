@@ -1,4 +1,4 @@
-﻿using Solnet.Rpc.Core.Http;
+using Solnet.Rpc.Core.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;

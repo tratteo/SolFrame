@@ -1,4 +1,4 @@
-﻿using Solnet.Programs.Clients;
+using Solnet.Programs.Clients;
 using System.Diagnostics;
 
 namespace Solnet.Programs.Models.NameService

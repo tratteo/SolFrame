@@ -4,11 +4,12 @@ using System;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Text.Json;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Solnet.KeyStore
 {
     /// <summary>
-    ///   Implements a keystore compatible with the web3 secret storage standard.
+    /// Implements a keystore compatible with the web3 secret storage standard.
     /// </summary>
     public class SecretKeyStoreService
     {

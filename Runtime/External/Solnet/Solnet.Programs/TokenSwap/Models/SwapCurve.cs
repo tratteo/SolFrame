@@ -1,4 +1,4 @@
-﻿using Solnet.Programs.Utilities;
+using Solnet.Programs.Utilities;
 using System;
 using System.Buffers.Binary;
 

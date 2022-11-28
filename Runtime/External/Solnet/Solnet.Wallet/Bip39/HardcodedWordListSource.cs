@@ -6,17 +6,17 @@ using System.Threading.Tasks;
 namespace Solnet.Wallet.Bip39
 {
     /// <summary>
-    ///   Implements a hardcoded word list source.
+    /// Implements a hardcoded word list source.
     /// </summary>
     internal class HardcodedWordlistSource : IWordlistSource
     {
         /// <summary>
-        ///   The word lists.
+        /// The word lists.
         /// </summary>
         private static readonly Dictionary<string, string> WordLists;
 
         /// <summary>
-        ///   Initialize the static instance of the hardcoded word list source.
+        /// Initialize the static instance of the hardcoded word list source.
         /// </summary>
         static HardcodedWordlistSource()
         {
@@ -62,20 +62,20 @@ namespace Solnet.Wallet.Bip39
         #region IWordlistSource Members
 
         /// <summary>
-        ///   Load the word list for the given name. This is an asynchronous operation.
+        /// Load the word list for the given name. This is an asynchronous operation.
         /// </summary>
-        /// <param name="name"> The name. </param>
-        /// <returns> A task which returns the word list. </returns>
+        /// <param name="name">The name.</param>
+        /// <returns>A task which returns the word list.</returns>
         public Task<WordList> LoadAsync(string name)
         {
-            var list = WordLists.TryGet(name);
-            return list == null
-                ? null
-                : Task.FromResult(new WordList(list.Split(new[] { "\n" }, StringSplitOptions.RemoveEmptyEntries),
+            string list = WordLists.TryGet(name);
+            if (list == null)
+                return null;
+            return Task.FromResult(new WordList(list.Split(new[] { "\n" }, StringSplitOptions.RemoveEmptyEntries),
                 name == "japanese" ? '　' : ' ', name
                 ));
         }
 
-        #endregion IWordlistSource Members
+        #endregion
     }
 }

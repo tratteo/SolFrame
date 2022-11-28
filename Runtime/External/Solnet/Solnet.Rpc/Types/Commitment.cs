@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Types
+namespace Solnet.Rpc.Types
 {
     /// <summary>
     /// The commitment describes how finalized a block is at that point in time.

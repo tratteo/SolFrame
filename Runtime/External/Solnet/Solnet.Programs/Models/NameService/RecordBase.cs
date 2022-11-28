@@ -1,4 +1,4 @@
-﻿using Solnet.Wallet;
+using Solnet.Wallet;
 using System.Diagnostics;
 
 namespace Solnet.Programs.Models.NameService

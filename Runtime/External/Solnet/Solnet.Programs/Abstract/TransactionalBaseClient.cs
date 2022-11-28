@@ -1,4 +1,4 @@
-﻿using Solnet.Rpc;
+using Solnet.Rpc;
 using Solnet.Rpc.Builders;
 using Solnet.Rpc.Core.Http;
 using Solnet.Rpc.Models;
@@ -6,6 +6,8 @@ using Solnet.Rpc.Types;
 using Solnet.Wallet;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Solnet.Programs.Abstract
@@ -97,7 +99,7 @@ namespace Solnet.Programs.Abstract
         protected async Task<RequestResult<string>> SignAndSendTransaction(TransactionInstruction instruction, PublicKey feePayer,
             Func<byte[], PublicKey, byte[]> signingCallback, Commitment commitment = Commitment.Finalized)
         {
-            var tb = new TransactionBuilder();
+            TransactionBuilder tb = new TransactionBuilder();
             tb.AddInstruction(instruction);
 
             var recentHash = await RpcClient.GetLatestBlockHashAsync();
@@ -109,7 +111,7 @@ namespace Solnet.Programs.Abstract
 
             var msg = Message.Deserialize(wireFmt);
 
-            for (var i = 0; i < msg.Header.RequiredSignatures; i++)
+            for (int i = 0; i < msg.Header.RequiredSignatures; i++)
             {
                 tb.AddSignature(signingCallback(wireFmt, msg.AccountKeys[i]));
             }

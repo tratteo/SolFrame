@@ -1,6 +1,7 @@
 using Solnet.Wallet;
 using System;
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Numerics;
 using System.Text;
 
@@ -171,36 +172,6 @@ namespace Solnet.Programs.Utilities
             return new BigInteger(data.Slice(offset, length), isUnsigned, isBigEndian);
         }
 
-        ///// <summary>
-        ///// Get a double-precision floating-point number from the span at the given offset.
-        ///// </summary>
-        ///// <param name="data">The span to get data from.</param>
-        ///// <param name="offset">The offset at which the double-precision floating-point number begins.</param>
-        ///// <returns>The <see cref="double"/> instance that represents the value.</returns>
-        ///// <exception cref="ArgumentOutOfRangeException">Thrown when the offset is too big for the span.</exception>
-        //public static double GetDouble(this ReadOnlySpan<byte> data, int offset)
-        //{
-        //    if (offset + sizeof(double) > data.Length)
-        //        throw new ArgumentOutOfRangeException(nameof(offset));
-
-        //    return BinaryPrimitives.ReadDoubleLittleEndian(data.Slice(offset, sizeof(double)));
-        //}
-
-        ///// <summary>
-        ///// Get a single-precision floating-point number from the span at the given offset.
-        ///// </summary>
-        ///// <param name="data">The span to get data from.</param>
-        ///// <param name="offset">The offset at which the single-precision floating-point number begins.</param>
-        ///// <returns>The <see cref="float"/> instance that represents the value.</returns>
-        ///// <exception cref="ArgumentOutOfRangeException">Thrown when the offset is too big for the span.</exception>
-        //public static float GetSingle(this ReadOnlySpan<byte> data, int offset)
-        //{
-        //    if (offset + sizeof(float) > data.Length)
-        //        throw new ArgumentOutOfRangeException(nameof(offset));
-
-        //    return BinaryPrimitives.ReadSingleLittleEndian(data.Slice(offset, sizeof(float)));
-        //}
-
         /// <summary>
         ///   Get a boolean value from the span at the given offset.
         /// </summary>
@@ -225,8 +196,8 @@ namespace Solnet.Programs.Utilities
             if (offset + sizeof(ulong) > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(offset));
 
-            var stringLength = (int)data.GetU64(offset);
-            var stringBytes = data.GetSpan(offset + sizeof(ulong), stringLength).ToArray();
+            int stringLength = (int)data.GetU64(offset);
+            byte[] stringBytes = data.GetSpan(offset + sizeof(ulong), stringLength).ToArray();
 
             return (EncodedString: Encoding.UTF8.GetString(stringBytes), Length: stringLength + sizeof(ulong));
         }
@@ -244,8 +215,8 @@ namespace Solnet.Programs.Utilities
             if (offset + sizeof(uint) > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(offset));
 
-            var stringLength = (int)data.GetU32(offset);
-            var stringBytes = data.GetSpan(offset + sizeof(uint), stringLength).ToArray();
+            int stringLength = (int)data.GetU32(offset);
+            byte[] stringBytes = data.GetSpan(offset + sizeof(uint), stringLength).ToArray();
             result = Encoding.UTF8.GetString(stringBytes);
 
             return stringLength + sizeof(uint);

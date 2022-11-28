@@ -1,10 +1,9 @@
-﻿using Solnet.Rpc.Types;
+using Solnet.Rpc.Types;
 using System;
 using System.IO;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace Solnet.Rpc.Core.Sockets
 {
@@ -16,7 +15,7 @@ namespace Solnet.Rpc.Core.Sockets
         /// <summary>
         ///   The logger instance.
         /// </summary>
-        protected readonly ILogger _logger;
+        protected readonly UnityEngine.ILogger _logger;
         /// <summary>
         ///   The web socket client abstraction.
         /// </summary>
@@ -43,7 +42,7 @@ namespace Solnet.Rpc.Core.Sockets
         /// <param name="logger"> The possible logger instance. </param>
         /// <param name="socket"> The possible websocket instance. A new instance will be created if null. </param>
         /// <param name="clientWebSocket"> The possible ClientWebSocket instance. A new instance will be created if null. </param>
-        protected StreamingRpcClient(string url, ILogger logger, IWebSocket socket = default, ClientWebSocket clientWebSocket = default)
+        protected StreamingRpcClient(string url, UnityEngine.ILogger logger, IWebSocket socket = default, ClientWebSocket clientWebSocket = default)
         {
             NodeAddress = new Uri(url);
             ClientSocket = socket ?? new WebSocketWrapper(clientWebSocket ?? new ClientWebSocket());
@@ -149,12 +148,10 @@ namespace Solnet.Rpc.Core.Sockets
                 {
                     await ReadNextMessage().ConfigureAwait(false);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    _logger?.LogException(e);
                 }
             }
-            _logger?.Log(LogType.Log, $"Stopped reading messages. ClientSocket.State changed to {ClientSocket.State}");
             ConnectionStateChangedEvent?.Invoke(this, State);
         }
 
@@ -166,9 +163,9 @@ namespace Solnet.Rpc.Core.Sockets
         private async Task ReadNextMessage(CancellationToken cancellationToken = default)
         {
             var buffer = new byte[32768];
-            var mem = new Memory<byte>(buffer);
-            var result = await ClientSocket.ReceiveAsync(mem, cancellationToken).ConfigureAwait(false);
-            var count = result.Count;
+            Memory<byte> mem = new Memory<byte>(buffer);
+            ValueWebSocketReceiveResult result = await ClientSocket.ReceiveAsync(mem, cancellationToken).ConfigureAwait(false);
+            int count = result.Count;
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
@@ -178,7 +175,7 @@ namespace Solnet.Rpc.Core.Sockets
             {
                 if (!result.EndOfMessage)
                 {
-                    var ms = new MemoryStream();
+                    MemoryStream ms = new MemoryStream();
                     ms.Write(mem.Span);
 
                     while (!result.EndOfMessage)

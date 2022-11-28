@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Types
+namespace Solnet.Rpc.Types
 {
     /// <summary>
     /// Contains several statistics regarding connection speed and dat usage.

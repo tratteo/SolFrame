@@ -1,5 +1,6 @@
 using Solnet.Rpc.Converters;
 using Solnet.Rpc.Core;
+using Solnet.Rpc.Core.Http;
 using Solnet.Rpc.Core.Sockets;
 using Solnet.Rpc.Messages;
 using Solnet.Rpc.Models;
@@ -7,13 +8,13 @@ using Solnet.Rpc.Types;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 
 namespace Solnet.Rpc
 {
@@ -42,10 +43,10 @@ namespace Solnet.Rpc
         ///   Internal constructor.
         /// </summary>
         /// <param name="url"> The url of the server to connect to. </param>
-        /// <param name="logger"> The possible ILogger instance. </param>
+        /// <param name="logger"> The possible UnityEngine.ILogger instance. </param>
         /// <param name="websocket"> The possible IWebSocket instance. </param>
         /// <param name="clientWebSocket"> The possible ClientWebSocket instance. </param>
-        internal SolanaStreamingRpcClient(string url, ILogger logger = null, IWebSocket websocket = default, ClientWebSocket clientWebSocket = default) : base(url, logger, websocket, clientWebSocket)
+        internal SolanaStreamingRpcClient(string url, UnityEngine.ILogger logger = null, IWebSocket websocket = default, ClientWebSocket clientWebSocket = default) : base(url, logger, websocket, clientWebSocket)
         {
         }
 
@@ -79,18 +80,12 @@ namespace Solnet.Rpc
         /// <inheritdoc cref="StreamingRpcClient.HandleNewMessage(Memory{byte})"/>
         protected override void HandleNewMessage(Memory<byte> messagePayload)
         {
-            var jsonReader = new Utf8JsonReader(messagePayload.Span);
+            Utf8JsonReader jsonReader = new Utf8JsonReader(messagePayload.Span);
             jsonReader.Read();
-
-            if (_logger?.logEnabled ?? false)
-            {
-                var str = Encoding.UTF8.GetString(messagePayload.Span);
-                _logger?.Log($"[Received]{str}");
-            }
 
             string prop = "", method = "";
             int id = -1, intResult = -1;
-            var handled = false;
+            bool handled = false;
             bool? boolResult = null;
 
             Utf8JsonReader savedState = default;
@@ -168,7 +163,7 @@ namespace Solnet.Rpc
         /// <param name="reader"> The jsonReader that read the message so far. </param>
         private void HandleError(ref Utf8JsonReader reader)
         {
-            var opts = new JsonSerializerOptions() { MaxDepth = 64, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            JsonSerializerOptions opts = new JsonSerializerOptions() { MaxDepth = 64, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
             var err = JsonSerializer.Deserialize<ErrorContent>(ref reader, opts);
 
             reader.Read();
@@ -198,7 +193,6 @@ namespace Solnet.Rpc
             {
                 if (!unconfirmedRequests.Remove(id, out sub))
                 {
-                    _logger.LogWarning(id.ToString(), $"No unconfirmed subscription found with ID:{id}");
                 }
             }
             return sub;
@@ -216,7 +210,6 @@ namespace Solnet.Rpc
             {
                 if (!confirmedSubscriptions.Remove(id, out sub))
                 {
-                    _logger.LogWarning(id.ToString(), $"No unconfirmed subscription found with ID:{id}");
                 }
             }
             if (shouldNotify)
@@ -282,7 +275,7 @@ namespace Solnet.Rpc
         /// <param name="subscriptionId"> The subscriptionId for this message. </param>
         private void HandleDataMessage(ref Utf8JsonReader reader, string method, int subscriptionId)
         {
-            var opts = new JsonSerializerOptions() { MaxDepth = 64, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+            JsonSerializerOptions opts = new JsonSerializerOptions() { MaxDepth = 64, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
             var sub = RetrieveSubscription(subscriptionId);
 
@@ -467,17 +460,25 @@ namespace Solnet.Rpc
         #region Program
 
         /// <inheritdoc cref="IStreamingRpcClient.SubscribeProgramAsync(string, Action{SubscriptionState, ResponseValue{AccountKeyPair}}, Commitment)"/>
-        public async Task<SubscriptionState> SubscribeProgramAsync(string programPubkey, Action<SubscriptionState, ResponseValue<AccountKeyPair>> callback, Commitment commitment = Commitment.Finalized)
+        public async Task<SubscriptionState> SubscribeProgramAsync(string programPubkey, Action<SubscriptionState,
+            ResponseValue<AccountKeyPair>> callback, Commitment commitment = Commitment.Finalized, int? dataSize = null,
+            IList<MemCmp> memCmpList = null)
         {
-            var parameters = new List<object> { programPubkey };
-            var configParams = new Dictionary<string, object> { { "encoding", "base64" } };
-
-            if (commitment != Commitment.Finalized)
+            List<object> filters = Parameters.Create(ConfigObject.Create(KeyValue.Create("dataSize", dataSize)));
+            if (memCmpList != null)
             {
-                configParams.Add("commitment", commitment);
+                filters ??= new List<object>();
+                filters.AddRange(memCmpList.Select(filter => ConfigObject.Create(KeyValue.Create("memcmp",
+                    ConfigObject.Create(KeyValue.Create("offset", filter.Offset),
+                        KeyValue.Create("bytes", filter.Bytes))))));
             }
 
-            parameters.Add(configParams);
+            List<object> parameters = Parameters.Create(
+                programPubkey,
+                ConfigObject.Create(
+                    KeyValue.Create("encoding", "base64"),
+                    KeyValue.Create("filters", filters),
+                    commitment != Commitment.Finalized ? KeyValue.Create("commitment", commitment) : null));
 
             var sub = new SubscriptionState<ResponseValue<AccountKeyPair>>(this, SubscriptionChannel.Program, callback, parameters);
 
@@ -486,8 +487,9 @@ namespace Solnet.Rpc
         }
 
         /// <inheritdoc cref="IStreamingRpcClient.SubscribeProgram(string, Action{SubscriptionState, ResponseValue{AccountKeyPair}}, Commitment)"/>
-        public SubscriptionState SubscribeProgram(string programPubkey, Action<SubscriptionState, ResponseValue<AccountKeyPair>> callback, Commitment commitment = Commitment.Finalized)
-            => SubscribeProgramAsync(programPubkey, callback, commitment).Result;
+        public SubscriptionState SubscribeProgram(string programPubkey, Action<SubscriptionState, ResponseValue<AccountKeyPair>> callback,
+            Commitment commitment = Commitment.Finalized, int? dataSize = null, IList<MemCmp> memCmpList = null)
+            => SubscribeProgramAsync(programPubkey, callback, commitment, dataSize, memCmpList).Result;
 
         #endregion Program
 
@@ -544,13 +546,7 @@ namespace Solnet.Rpc
                 }
             });
 
-            if (_logger?.logEnabled ?? false)
-            {
-                var jsonString = Encoding.UTF8.GetString(json);
-                _logger?.Log($"[Sending]{jsonString}");
-            }
-
-            var mem = new ReadOnlyMemory<byte>(json);
+            ReadOnlyMemory<byte> mem = new ReadOnlyMemory<byte>(json);
 
             try
             {
@@ -560,7 +556,6 @@ namespace Solnet.Rpc
             catch (Exception e)
             {
                 sub.ChangeState(SubscriptionStatus.ErrorSubscribing, e.Message);
-                _logger?.LogException(e);
             }
 
             return sub;

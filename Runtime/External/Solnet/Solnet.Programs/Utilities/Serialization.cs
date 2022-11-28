@@ -1,6 +1,10 @@
+using Solnet.Rpc.Utilities;
 using Solnet.Wallet;
+using Solnet.Wallet.Utilities;
 using System;
 using System.Buffers.Binary;
+using System.Diagnostics;
+using System.IO;
 using System.Numerics;
 using System.Text;
 
@@ -180,13 +184,13 @@ namespace Solnet.Programs.Utilities
         public static int WriteBigInt(this byte[] data, BigInteger bigInteger, int offset, int length,
             bool isUnsigned = false, bool isBigEndian = false)
         {
-            var byteCount = bigInteger.GetByteCount(isUnsigned);
+            int byteCount = bigInteger.GetByteCount(isUnsigned);
             if (byteCount > length) throw new ArgumentOutOfRangeException($"BigInt too big.");
             if (length + offset > data.Length) throw new ArgumentOutOfRangeException(nameof(offset));
 
             bigInteger.TryWriteBytes(
                 data.AsSpan(offset, byteCount),
-                out var written,
+                out int written,
                 isUnsigned,
                 isBigEndian);
 
@@ -198,36 +202,6 @@ namespace Solnet.Programs.Utilities
             return written;
         }
 
-        ///// <summary>
-        /////   Write a double-precision floating-point value to the byte array at the given offset.
-        ///// </summary>
-        ///// <param name="data"> The byte array to write data to. </param>
-        ///// <param name="value"> The <see cref="double"/> to write. </param>
-        ///// <param name="offset"> The offset at which to write the <see cref="double"/>. </param>
-        ///// <exception cref="ArgumentOutOfRangeException"> Thrown when the offset is too big for the data array. </exception>
-        //public static void WriteDouble(this byte[] data, double value, int offset)
-        //{
-        //    if (offset + sizeof(double) > data.Length)
-        //        throw new ArgumentOutOfRangeException(nameof(offset));
-
-        //    BinaryPrimitives.WriteDoubleLittleEndian(data.AsSpan(offset, sizeof(double)), value);
-        //}
-
-        ///// <summary>
-        /////   Write a single-precision floating-point value to the byte array at the given offset.
-        ///// </summary>
-        ///// <param name="data"> The byte array to write data to. </param>
-        ///// <param name="value"> The <see cref="float"/> to write. </param>
-        ///// <param name="offset"> The offset at which to write the <see cref="float"/>. </param>
-        ///// <exception cref="ArgumentOutOfRangeException"> Thrown when the offset is too big for the data array. </exception>
-        //public static void WriteSingle(this byte[] data, float value, int offset)
-        //{
-        //    if (offset + sizeof(float) > data.Length)
-        //        throw new ArgumentOutOfRangeException(nameof(offset));
-
-        //    BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(offset, sizeof(float)), value);
-        //}
-
         /// <summary>
         ///   Write a UTF8 string value to the byte array at the given offset.
         /// </summary>
@@ -237,7 +211,7 @@ namespace Solnet.Programs.Utilities
         /// <returns> Returns the number of bytes written. </returns>
         public static int WriteBorshString(this byte[] data, string value, int offset)
         {
-            var stringBytes = Encoding.UTF8.GetBytes(value);
+            byte[] stringBytes = Encoding.UTF8.GetBytes(value);
 
             if (offset + sizeof(uint) + stringBytes.Length > data.Length)
                 throw new ArgumentOutOfRangeException(nameof(offset));
@@ -255,9 +229,9 @@ namespace Solnet.Programs.Utilities
         /// <returns> </returns>
         public static byte[] EncodeBincodeString(string data)
         {
-            var stringBytes = Encoding.UTF8.GetBytes(data);
+            byte[] stringBytes = Encoding.UTF8.GetBytes(data);
 
-            var encoded = new byte[stringBytes.Length + sizeof(ulong)];
+            byte[] encoded = new byte[stringBytes.Length + sizeof(ulong)];
 
             encoded.WriteU64((ulong)stringBytes.Length, 0);
             encoded.WriteSpan(stringBytes, 8);

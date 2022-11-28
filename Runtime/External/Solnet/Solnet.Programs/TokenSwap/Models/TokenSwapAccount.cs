@@ -1,4 +1,4 @@
-﻿using Solnet.Wallet;
+using Solnet.Wallet;
 
 namespace Solnet.Programs.TokenSwap.Models
 {

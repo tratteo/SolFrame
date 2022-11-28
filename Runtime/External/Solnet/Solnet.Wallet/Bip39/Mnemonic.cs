@@ -3,6 +3,7 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Solnet.Wallet.Utilities;
 using System;
+using System.Collections;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
@@ -63,18 +64,18 @@ namespace Solnet.Wallet.Bip39
                     return _isValidChecksum.Value;
                 }
 
-                var i = Array.IndexOf(MsArray, Indices.Length);
-                var cs = CsArray[i];
-                var ent = EntArray[i];
+                int i = Array.IndexOf(MsArray, Indices.Length);
+                int cs = CsArray[i];
+                int ent = EntArray[i];
 
                 BitWriter writer = new();
-                var bits = WordList.ToBits(Indices);
+                BitArray bits = WordList.ToBits(Indices);
                 writer.Write(bits, ent);
-                var entropy = writer.ToBytes();
-                var checksum = Utils.Sha256(entropy);
+                byte[] entropy = writer.ToBytes();
+                byte[] checksum = Utils.Sha256(entropy);
 
                 writer.Write(checksum, cs);
-                var expectedIndices = writer.ToIntegers();
+                int[] expectedIndices = writer.ToIntegers();
                 _isValidChecksum = expectedIndices.SequenceEqual(Indices);
                 return _isValidChecksum.Value;
             }
@@ -110,7 +111,7 @@ namespace Solnet.Wallet.Bip39
 
             wordList ??= WordList.AutoDetect(mnemonic) ?? WordList.English;
 
-            var words = mnemonic.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            string[] words = mnemonic.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
             _mnemonic = string.Join(wordList.Space.ToString(), words);
 
             //if the sentence is not at least 12 characters or cleanly divisible by 3, it is bad!
@@ -141,12 +142,12 @@ namespace Solnet.Wallet.Bip39
             WordList = wordList;
             entropy ??= RandomUtils.GetBytes(32);
 
-            var i = Array.IndexOf(EntArray, entropy.Length * 8);
+            int i = Array.IndexOf(EntArray, entropy.Length * 8);
             if (i == -1)
                 throw new ArgumentException("The length for entropy should be " + string.Join(",", EntArray) + " bits", nameof(entropy));
 
-            var cs = CsArray[i];
-            var checksum = Utils.Sha256(entropy);
+            int cs = CsArray[i];
+            byte[] checksum = Utils.Sha256(entropy);
             BitWriter entropyResult = new();
 
             entropyResult.Write(entropy);
@@ -164,8 +165,8 @@ namespace Solnet.Wallet.Bip39
         public byte[] DeriveSeed(string passphrase = null)
         {
             passphrase ??= "";
-            var salt = Concat(_noBomutf8.GetBytes("mnemonic"), Normalize(passphrase));
-            var bytes = Normalize(_mnemonic);
+            byte[] salt = Concat(_noBomutf8.GetBytes("mnemonic"), Normalize(passphrase));
+            byte[] bytes = Normalize(_mnemonic);
 
             return GenerateSeed(bytes, salt);
         }
@@ -197,10 +198,10 @@ namespace Solnet.Wallet.Bip39
         /// <exception cref="ArgumentException"> Thrown when the word count is invalid. </exception>
         private static byte[] GenerateEntropy(WordCount wordCount)
         {
-            var ms = (int)wordCount;
+            int ms = (int)wordCount;
             if (!CorrectWordCount(ms))
                 throw new ArgumentException("Word count should be 12,15,18,21 or 24", nameof(wordCount));
-            var i = Array.IndexOf(MsArray, (int)wordCount);
+            int i = Array.IndexOf(MsArray, (int)wordCount);
             return RandomUtils.GetBytes(EntArray[i] / 8);
         }
 
@@ -224,7 +225,7 @@ namespace Solnet.Wallet.Bip39
         {
             Pkcs5S2ParametersGenerator gen = new(new Sha512Digest());
             gen.Init(password, salt, 2048);
-            return ((KeyParameter)gen.GenerateDerivedParameters(string.Empty, 512)).GetKey();
+            return ((KeyParameter)gen.GenerateDerivedParameters("DES", 512)).GetKey();
         }
 
         /// <summary>
@@ -275,7 +276,7 @@ namespace Solnet.Wallet.Bip39
         private static byte[] Concat(byte[] source1, byte[] source2)
         {
             //Most efficient way to merge two arrays this according to http://stackoverflow.com/questions/415291/best-way-to-combine-two-or-more-byte-arrays-in-c-sharp
-            var buffer = new byte[source1.Length + source2.Length];
+            byte[] buffer = new byte[source1.Length + source2.Length];
             Buffer.BlockCopy(source1, 0, buffer, 0, source1.Length);
             Buffer.BlockCopy(source2, 0, buffer, source1.Length, source2.Length);
 

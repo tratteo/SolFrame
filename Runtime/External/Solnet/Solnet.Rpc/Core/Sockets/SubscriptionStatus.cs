@@ -1,4 +1,4 @@
-﻿namespace Solnet.Rpc.Core.Sockets
+namespace Solnet.Rpc.Core.Sockets
 {
     /// <summary>
     /// Represents the status of a subscription.

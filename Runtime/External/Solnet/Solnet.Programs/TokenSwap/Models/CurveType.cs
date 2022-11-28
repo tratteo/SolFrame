@@ -1,4 +1,4 @@
-﻿namespace Solnet.Programs.TokenSwap.Models
+namespace Solnet.Programs.TokenSwap.Models
 {
     /// <summary>
     /// Curve type enum for an instruction

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Solnet.Programs.TokenSwap.Models
 {
